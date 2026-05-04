@@ -1,0 +1,13 @@
+{
+  "short_name": "PassIt",
+  "name": "PassIt — Révision Brevet",
+  "description": "L'app de révision du Brevet des collèges propulsée par l'IA",
+  "icons": [
+    { "src": "favicon.ico", "sizes": "64x64 32x32 24x24 16x16", "type": "image/x-icon" }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#080812",
+  "background_color": "#080812",
+  "orientation": "portrait"
+}
