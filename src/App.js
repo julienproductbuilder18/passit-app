@@ -327,43 +327,25 @@ const ContentScreen = ({ matiere, chapitre, mode, onBack }) => {
 
     // Appel API Claude (via Make webhook)
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 1000,
-          stream: true,
-          messages: [{ role: 'user', content: buildPrompt(mode, matiere.nom, chapitre.titre) }],
-        }),
-      });
+  const response = await fetch('/api/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: buildPrompt(mode, matiere.nom, chapitre.titre) }),
+  });
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let full = '';
+  const data = await response.json();
+  const text = data.text || '';
+  setContent(text);
+  setLoading(false);
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const lines = decoder.decode(value).split('\n');
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.delta?.text) { full += data.delta.text; setContent(full); setLoading(false); }
-            } catch {}
-          }
-        }
-        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-      }
-
-      // Sauvegarder dans le cache
-      if (full) await supabase.from('cache_ia').insert({ cle_cache: cacheKey, mode, contenu_ia: full, nb_reutilisations: 1 });
-    } catch (e) {
-      setError('Erreur de génération. Vérifie ta connexion.');
-      setLoading(false);
-    }
-  };
+  if (text) await supabase.from('cache_ia').insert({
+    cle_cache: cacheKey, mode, contenu_ia: text, nb_reutilisations: 1
+  });
+} catch (e) {
+  setError('Erreur de génération. Vérifie ta connexion.');
+  setLoading(false);
+}
+};
 
   const modeIcons = { 'Fiche de cours': '📚', 'Quiz': '❓', 'Exercice guidé': '✏️' };
 
