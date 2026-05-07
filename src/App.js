@@ -415,7 +415,7 @@ const ProfilScreen = ({ user, onLogout }) => {
           <div style={{ ...S.card(), background: 'linear-gradient(135deg, #7B2FFF15, #00F5A010)', border: '1px solid #00F5A030' }}>
             <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>🚀 Passer à Premium</div>
             <div style={{ fontSize: 13, color: '#64748B', marginBottom: 14 }}>Accès illimité jusqu'au brevet pour 9,99€</div>
-            <a href="https://buy.stripe.com/REMPLACER_BREVET" target="_blank" rel="noreferrer" style={{ display: 'block', textAlign: 'center', background: '#00F5A0', color: '#080812', borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 700, textDecoration: 'none' }}>S'abonner →</a>
+            <a href="https://buy.stripe.com/test_8x24gygIa4Jme9F14RbAs00" target="_blank" rel="noreferrer" style={{ display: 'block', textAlign: 'center', background: '#00F5A0', color: '#080812', borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 700, textDecoration: 'none' }}>S'abonner →</a>
           </div>
         )}
 
