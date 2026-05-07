@@ -159,9 +159,8 @@ const AuthScreen = ({ onAuth }) => {
 // ── ÉCRAN PAYWALL ────────────────────────────────────────────
 const PaywallScreen = ({ user, onLogout }) => {
   const STRIPE_LINKS = {
-    brevet: 'https://buy.stripe.com/REMPLACER_BREVET',
-    vacances: 'https://buy.stripe.com/REMPLACER_VACANCES',
-    annuel: 'https://buy.stripe.com/REMPLACER_ANNUEL',
+    brevet: 'https://buy.stripe.com/test_8x24gygIa4Jme9F14RbAs00',
+    
   };
 
   return (
