@@ -93,11 +93,23 @@ const AuthScreen = () => {
         }, { onConflict: 'email', ignoreDuplicates: true });
         if (upsertErr) throw upsertErr;
 
+        // ... bloc if (parentEmail) existant ...
         if (parentEmail) {
           await supabase.from('parents_emails').upsert({
             user_email: email.toLowerCase(), parent_email: parentEmail.toLowerCase(), actif: true
           }, { onConflict: 'user_email' });
         }
+
+        // 👇 AJOUTE ICI
+        await fetch('https://hook.eu1.make.com/74j2nhcm32rvyrvajiuvsuow9shohhqy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'inscription',
+            email: email.toLowerCase(),
+            prenom,
+          }),
+        });
       }
       const { error: authErr } = await supabase.auth.signInWithOtp({
         email: email.toLowerCase(),
