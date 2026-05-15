@@ -652,7 +652,63 @@ const NavBar = ({ active, onChange }) => (
     ))}
   </div>
 );
+// ── RESET PASSWORD ───────────────────────────────────────────
+const ResetPasswordScreen = ({ onDone }) => {
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
 
+  const handleReset = async () => {
+    setError('');
+    if (!password) return setError('Mot de passe requis');
+    if (password.length < 8) return setError('8 caractères minimum');
+    if (password !== confirmPassword) return setError('Les mots de passe ne correspondent pas');
+    setLoading(true);
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) setError(error.message);
+    else setSuccess(true);
+    setLoading(false);
+  };
+
+  if (success) return (
+    <div style={S.app}>
+      <div style={{ ...S.screen, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 32px', textAlign: 'center' }}>
+        <div style={{ fontSize: 56, marginBottom: 24 }}>✅</div>
+        <Logo size={28} />
+        <div style={{ marginTop: 24, fontSize: 20, fontWeight: 700 }}>Mot de passe modifié !</div>
+        <div style={{ marginTop: 12, color: '#64748B', fontSize: 15 }}>Tu peux maintenant te connecter avec ton nouveau mot de passe.</div>
+        <button style={{ ...S.btn(), marginTop: 32 }} onClick={onDone}>Se connecter →</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={S.app}>
+      <div style={{ ...S.screen, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 24px' }}>
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <Logo size={32} />
+          <div style={{ marginTop: 12, fontSize: 18, fontWeight: 700 }}>Nouveau mot de passe</div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <label style={S.label}>Nouveau mot de passe</label>
+            <input style={S.input} placeholder="8 caractères minimum" type="password" value={password} onChange={e => setPassword(e.target.value)} />
+          </div>
+          <div>
+            <label style={S.label}>Confirmer le mot de passe</label>
+            <input style={S.input} placeholder="Répète ton mot de passe" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} />
+          </div>
+          {error && <div style={{ background: '#FEF2F2', borderRadius: 10, padding: '10px 14px', color: '#991B1B', fontSize: 13 }}>⚠️ {error}</div>}
+          <button style={S.btn()} onClick={handleReset} disabled={loading}>
+            {loading ? '...' : '🔒 Modifier mon mot de passe'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 // ── APP ──────────────────────────────────────────────────────
 export default function App() {
   const [authUser, setAuthUser] = useState(null);
@@ -696,6 +752,16 @@ export default function App() {
 
   if (loading) return <div style={{ ...S.app, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ textAlign: 'center' }}><Logo size={32} /><div style={{ marginTop: 20, color: '#334155' }}>Chargement…</div></div></div>;
   if (!authUser) return <AuthScreen />;
+  // Détecter la page reset-password
+  const isResetPassword = window.location.pathname === '/reset-password' || 
+    window.location.hash.includes('type=recovery');
+
+  if (isResetPassword && authUser) return (
+    <ResetPasswordScreen onDone={() => { 
+      window.history.pushState({}, '', '/');
+      window.location.reload();
+    }} />
+  );
   if (!hasAccess) return <PaywallScreen user={dbUser} onLogout={handleLogout} />;
 
   return (
