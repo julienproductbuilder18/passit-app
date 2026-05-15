@@ -75,33 +75,69 @@ const AuthScreen = () => {
   const [parentEmail, setParentEmail] = useState('');
   const [error, setError] = useState('');
 
+  const AuthScreen = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [prenom, setPrenom] = useState('');
+  const [isLogin, setIsLogin] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [consent, setConsent] = useState(false);
+  const [minor, setMinor] = useState(false);
+  const [parentEmail, setParentEmail] = useState('');
+  const [error, setError] = useState('');
+  const [resetSent, setResetSent] = useState(false);
+
   const handleSubmit = async () => {
     setError('');
     if (!email) return setError('Adresse email requise');
+    if (!password) return setError('Mot de passe requis');
+    if (!isLogin && password.length < 8) return setError('Mot de passe trop court (8 caractères minimum)');
+    if (!isLogin && password !== confirmPassword) return setError('Les mots de passe ne correspondent pas');
     if (!isLogin && !prenom) return setError('Prénom requis');
     if (!isLogin && !consent) return setError('Tu dois accepter les CGU');
     setLoading(true);
+
     try {
-      if (!isLogin) {
+      if (isLogin) {
+        // Connexion
+        const { error: signInErr } = await supabase.auth.signInWithPassword({
+          email: email.toLowerCase(),
+          password,
+        });
+        if (signInErr) throw signInErr;
+      } else {
+        // Inscription
+        const { error: signUpErr } = await supabase.auth.signUp({
+          email: email.toLowerCase(),
+          password,
+        });
+        if (signUpErr) throw signUpErr;
+
+        // Créer l'utilisateur dans la table users
         const trialEnd = new Date();
         trialEnd.setDate(trialEnd.getDate() + 3);
         const { error: upsertErr } = await supabase.from('users').upsert({
-          email: email.toLowerCase(), prenom,
+          email: email.toLowerCase(),
+          prenom,
           date_inscription: new Date().toISOString(),
           trial_end: trialEnd.toISOString(),
-          statut: 'trial', consentement_rgpd: consent,
+          statut: 'trial',
+          consentement_rgpd: consent,
         }, { onConflict: 'email', ignoreDuplicates: true });
         if (upsertErr) throw upsertErr;
 
-        // ... bloc if (parentEmail) existant ...
+        // Sauvegarder email parent si fourni
         if (parentEmail) {
           await supabase.from('parents_emails').upsert({
-            user_email: email.toLowerCase(), parent_email: parentEmail.toLowerCase(), actif: true
+            user_email: email.toLowerCase(),
+            parent_email: parentEmail.toLowerCase(),
+            actif: true
           }, { onConflict: 'user_email' });
         }
 
-        // 👇 AJOUTE ICI
-        await fetch('https://hook.eu1.make.com/74j2nhcm32rvyrvajiuvsuow9shohhqy', {
+        // Envoyer webhook à Make
+        await fetch('COLLE_URL_WEBHOOK_MAKE_ICI', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -111,31 +147,41 @@ const AuthScreen = () => {
           }),
         });
       }
-      const { error: authErr } = await supabase.auth.signInWithOtp({
-        email: email.toLowerCase(),
-        options: { emailRedirectTo: window.location.origin }
-      });
-      if (authErr) throw authErr;
-      setSent(true);
-    } catch (e) { setError(e.message || 'Une erreur est survenue'); }
+    } catch (e) {
+      const msg = e.message || 'Une erreur est survenue';
+      if (msg.includes('Invalid login credentials')) setError('Email ou mot de passe incorrect');
+      else if (msg.includes('already registered')) setError('Cet email est déjà utilisé');
+      else setError(msg);
+    }
     setLoading(false);
   };
 
-  if (sent) return (
+  const handleForgotPassword = async () => {
+    if (!email) return setError('Entre ton email pour réinitialiser ton mot de passe');
+    setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email.toLowerCase(), {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    if (error) setError(error.message);
+    else setResetSent(true);
+    setLoading(false);
+  };
+
+  if (resetSent) return (
     <div style={S.app}>
       <div style={{ ...S.screen, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 32px', textAlign: 'center' }}>
         <div style={{ fontSize: 56, marginBottom: 24 }}>📬</div>
         <Logo size={28} />
-        <div style={{ marginTop: 24, fontSize: 20, fontWeight: 700 }}>Vérifie ta boîte mail !</div>
-        <div style={{ marginTop: 12, color: '#64748B', fontSize: 15, lineHeight: 1.6 }}>Lien envoyé à <strong style={{ color: '#F0F0FF' }}>{email}</strong></div>
-        <button style={{ ...S.btn('rgba(255,255,255,0.06)', '#F0F0FF'), marginTop: 32, width: 'auto', padding: '12px 24px' }} onClick={() => setSent(false)}>← Retour</button>
+        <div style={{ marginTop: 24, fontSize: 20, fontWeight: 700 }}>Email envoyé !</div>
+        <div style={{ marginTop: 12, color: '#64748B', fontSize: 15, lineHeight: 1.6 }}>Vérifie ta boîte mail pour réinitialiser ton mot de passe.</div>
+        <button style={{ ...S.btn('rgba(255,255,255,0.06)', '#F0F0FF'), marginTop: 32, width: 'auto', padding: '12px 24px' }} onClick={() => setResetSent(false)}>← Retour</button>
       </div>
     </div>
   );
 
   return (
     <div style={S.app}>
-      <div style={{ ...S.screen, padding: '0 24px' }}>
+      <div style={{ ...S.screen, padding: '0 24px', overflowY: 'auto' }}>
         <div style={{ textAlign: 'center', padding: '48px 0 32px' }}>
           <Logo size={42} />
           <div style={{ marginTop: 12, color: '#64748B', fontSize: 14 }}>L'app brevet de ta génération</div>
@@ -143,14 +189,39 @@ const AuthScreen = () => {
             <span style={{ color: '#00F5A0', fontSize: 13, fontWeight: 600 }}>✓ 3 jours gratuits · Sans CB</span>
           </div>
         </div>
+
+        {/* Tabs */}
         <div style={{ display: 'flex', background: '#12121F', borderRadius: 12, padding: 4, marginBottom: 24 }}>
           {['Inscription', 'Connexion'].map((t, i) => (
-            <button key={t} onClick={() => setIsLogin(i === 1)} style={{ flex: 1, background: isLogin === (i === 1) ? '#00F5A0' : 'transparent', color: isLogin === (i === 1) ? '#080812' : '#64748B', border: 'none', borderRadius: 9, padding: '10px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>{t}</button>
+            <button key={t} onClick={() => { setIsLogin(i === 1); setError(''); }} style={{ flex: 1, background: isLogin === (i === 1) ? '#00F5A0' : 'transparent', color: isLogin === (i === 1) ? '#080812' : '#64748B', border: 'none', borderRadius: 9, padding: '10px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>{t}</button>
           ))}
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {!isLogin && <div><label style={S.label}>Prénom</label><input style={S.input} placeholder="Ton prénom" value={prenom} onChange={e => setPrenom(e.target.value)} /></div>}
-          <div><label style={S.label}>Email</label><input style={S.input} placeholder="ton@email.com" type="email" value={email} onChange={e => setEmail(e.target.value)} /></div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {!isLogin && (
+            <div>
+              <label style={S.label}>Prénom</label>
+              <input style={S.input} placeholder="Ton prénom" value={prenom} onChange={e => setPrenom(e.target.value)} />
+            </div>
+          )}
+
+          <div>
+            <label style={S.label}>Email</label>
+            <input style={S.input} placeholder="ton@email.com" type="email" value={email} onChange={e => setEmail(e.target.value)} />
+          </div>
+
+          <div>
+            <label style={S.label}>Mot de passe</label>
+            <input style={S.input} placeholder={isLogin ? "Ton mot de passe" : "8 caractères minimum"} type="password" value={password} onChange={e => setPassword(e.target.value)} />
+          </div>
+
+          {!isLogin && (
+            <div>
+              <label style={S.label}>Confirmer le mot de passe</label>
+              <input style={S.input} placeholder="Répète ton mot de passe" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} />
+            </div>
+          )}
+
           {!isLogin && (
             <>
               <div>
@@ -170,17 +241,29 @@ const AuthScreen = () => {
               </div>
             </>
           )}
-          {error && <div style={{ background: '#FEF2F2', borderRadius: 10, padding: '10px 14px', color: '#991B1B', fontSize: 13 }}>⚠️ {error}</div>}
+
+          {error && (
+            <div style={{ background: '#FEF2F2', borderRadius: 10, padding: '10px 14px', color: '#991B1B', fontSize: 13 }}>⚠️ {error}</div>
+          )}
+
           <button style={S.btn()} onClick={handleSubmit} disabled={loading}>
-            {loading ? '...' : isLogin ? '🔗 Recevoir mon lien de connexion' : '🚀 Démarrer 3 jours gratuits'}
+            {loading ? '...' : isLogin ? '🔓 Se connecter' : '🚀 Démarrer 3 jours gratuits'}
           </button>
+
+          {isLogin && (
+            <button style={{ background: 'none', border: 'none', color: '#64748B', fontSize: 13, cursor: 'pointer', textAlign: 'center', marginTop: 4 }} onClick={handleForgotPassword}>
+              Mot de passe oublié ?
+            </button>
+          )}
         </div>
-        <div style={{ textAlign: 'center', marginTop: 32, color: '#334155', fontSize: 12 }}>🔒 Sans publicité · Sans données revendues · Conforme RGPD</div>
+
+        <div style={{ textAlign: 'center', marginTop: 32, color: '#334155', fontSize: 12, lineHeight: 1.6, paddingBottom: 32 }}>
+          🔒 Sans publicité · Sans données revendues · Conforme RGPD
+        </div>
       </div>
     </div>
   );
 };
-
 // ── PAYWALL ──────────────────────────────────────────────────
 const PaywallScreen = ({ user, onLogout }) => (
   <div style={S.app}>
