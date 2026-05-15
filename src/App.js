@@ -604,6 +604,7 @@ const ModeScreen = ({ matiere, chapitre, onSelect, onBack }) => (
 const ProfilScreen = ({ user, onLogout }) => {
   const statusColors = { trial: '#378ADD', premium: '#10B981', expired: '#EF4444' };
   const statusLabels = { trial: 'Essai gratuit', premium: 'Premium ✅', expired: 'Expiré' };
+  const ProfilScreen = ({ user, onLogout, onShowCGU, onShowRGPD }) => {
   return (
     <div style={{ padding: '24px 16px' }}>
       <div style={{ marginBottom: 24 }}><Logo size={22} /><div style={{ fontSize: 12, color: '#475569', marginTop: 4 }}>Mon profil</div></div>
@@ -630,9 +631,9 @@ const ProfilScreen = ({ user, onLogout }) => {
         )}
         <div style={S.card()}>
           <div style={{ fontSize: 12, color: '#475569', marginBottom: 14, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Légal</div>
-          {['CGU', 'Politique de confidentialité', 'Supprimer mon compte'].map(link => (
-            <div key={link} style={{ padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: 13, color: link === 'Supprimer mon compte' ? '#EF4444' : '#64748B', cursor: 'pointer' }}>{link} →</div>
-          ))}
+          <div onClick={() => onShowCGU()} style={{ padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: 13, color: '#64748B', cursor: 'pointer' }}>CGU →</div>
+          <div onClick={() => onShowRGPD()} style={{ padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: 13, color: '#64748B', cursor: 'pointer' }}>Politique de confidentialité →</div>
+          <div style={{ padding: '10px 0', fontSize: 13, color: '#EF4444', cursor: 'pointer' }}>Supprimer mon compte →</div>
         </div>
         <button style={{ ...S.btn('rgba(255,255,255,0.06)', '#F0F0FF'), marginTop: 8 }} onClick={onLogout}>Se déconnecter</button>
       </div>
@@ -650,6 +651,170 @@ const NavBar = ({ active, onChange }) => (
         {active === tab.id && <div style={{ width: 18, height: 3, borderRadius: 2, background: '#00F5A0' }} />}
       </button>
     ))}
+  </div>
+);
+// ── CGU ──────────────────────────────────────────────────────
+const CGUScreen = ({ onBack }) => (
+  <div style={S.app}>
+    <div style={{ ...S.screen, padding: '0 0 32px' }}>
+      <div style={{ background: '#12121F', padding: '20px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+        <button style={S.backBtn} onClick={onBack}>← Retour</button>
+        <Logo size={22} />
+        <div style={{ fontSize: 18, fontWeight: 700, marginTop: 8 }}>Conditions Générales d'Utilisation</div>
+        <div style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>Version 1.0 — Avril 2026</div>
+      </div>
+      <div style={{ padding: '20px 20px', fontSize: 13, color: '#94A3B8', lineHeight: 1.8 }}>
+
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 16 }}>Article 1 — Éditeur</div>
+        <p>PassIt est édité par Optimeo Agency. Contact : contact@passit.fr</p>
+
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 2 — Acceptation des CGU</div>
+        <p>L'utilisation de PassIt implique l'acceptation pleine et entière des présentes CGU. Pour les utilisateurs mineurs (moins de 15 ans), le consentement d'un parent ou tuteur légal est requis.</p>
+
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 3 — Description du service</div>
+        <p>PassIt propose des fiches de cours, quiz interactifs et exercices guidés générés par intelligence artificielle pour préparer le Brevet des collèges. Le contenu est fourni à titre d'aide à la révision et ne remplace pas l'enseignement scolaire.</p>
+        <div style={{ background: '#FEF2F220', borderRadius: 10, padding: '12px 14px', marginTop: 10, border: '1px solid #EF444430' }}>
+          <span style={{ color: '#EF4444', fontWeight: 600, fontSize: 12 }}>⚠️ PassIt n'est pas un outil de triche.</span>
+          <p style={{ marginTop: 4, fontSize: 12 }}>Toute utilisation pendant un examen est strictement interdite.</p>
+        </div>
+
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 4 — Essai gratuit</div>
+        <p>Chaque nouvel utilisateur bénéficie d'un accès gratuit complet de 3 jours calendaires. Cet essai est accordé une seule fois par adresse email.</p>
+
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 5 — Abonnement et tarifs</div>
+        <div style={{ background: '#12121F', borderRadius: 10, padding: '12px 14px', marginTop: 8 }}>
+          {[
+            ['Brevet', '9,99€', 'Paiement unique · Jusqu\'au 30 juin'],
+            ['Vacances', '4,99€', 'Paiement unique · Juillet-Août'],
+            ['Annuel', '29,99€/an', 'Renouvellement automatique'],
+          ].map(([nom, prix, desc]) => (
+            <div key={nom} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#F0F0FF' }}>{nom}</div>
+                <div style={{ fontSize: 11, color: '#64748B' }}>{desc}</div>
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#00F5A0' }}>{prix}</div>
+            </div>
+          ))}
+        </div>
+        <p style={{ marginTop: 10 }}>Le paiement est sécurisé par Stripe. Aucune donnée bancaire n'est stockée par PassIt.</p>
+
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 6 — Droit de rétractation</div>
+        <p>Conformément à l'article L221-28 du Code de la consommation, le droit de rétractation ne s'applique pas aux contenus numériques dont l'exécution a commencé avec l'accord du consommateur. Un remboursement peut être demandé dans les 24h si aucun contenu n'a été consulté.</p>
+
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 7 — Comportements interdits</div>
+        <p>Il est interdit de partager ses identifiants, créer plusieurs comptes pour bénéficier de plusieurs essais gratuits, extraire ou redistribuer le contenu à des fins commerciales, ou utiliser l'app pendant un examen.</p>
+
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 8 — Propriété intellectuelle</div>
+        <p>L'ensemble des éléments de PassIt (marque, logo, contenu, code) est la propriété exclusive d'Optimeo Agency et est protégé par le droit français.</p>
+
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 9 — Responsabilité</div>
+        <p>Optimeo Agency ne saurait être tenue responsable des résultats obtenus au Brevet, des erreurs dans le contenu généré par IA, ou des interruptions de service.</p>
+
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 10 — Résiliation</div>
+        <p>L'utilisateur peut supprimer son compte à tout moment depuis la page Profil. La suppression entraîne la perte immédiate de l'accès sans remboursement.</p>
+
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 11 — Droit applicable</div>
+        <p>Les présentes CGU sont soumises au droit français. Contact : contact@passit.fr</p>
+
+        <div style={{ marginTop: 24, padding: '14px', background: '#12121F', borderRadius: 12, fontSize: 12, color: '#475569', textAlign: 'center' }}>
+          Optimeo Agency · CGU Version 1.0 · Avril 2026
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+// ── POLITIQUE DE CONFIDENTIALITÉ ─────────────────────────────
+const RGPDScreen = ({ onBack }) => (
+  <div style={S.app}>
+    <div style={{ ...S.screen, padding: '0 0 32px' }}>
+      <div style={{ background: '#12121F', padding: '20px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+        <button style={S.backBtn} onClick={onBack}>← Retour</button>
+        <Logo size={22} />
+        <div style={{ fontSize: 18, fontWeight: 700, marginTop: 8 }}>Politique de confidentialité</div>
+        <div style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>Version 1.0 — Avril 2026 · Conforme RGPD</div>
+      </div>
+      <div style={{ padding: '20px', fontSize: 13, color: '#94A3B8', lineHeight: 1.8 }}>
+
+        <div style={{ background: '#00F5A010', border: '1px solid #00F5A030', borderRadius: 12, padding: '14px', marginBottom: 20 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#00F5A0', marginBottom: 6 }}>Résumé simple</div>
+          <p style={{ fontSize: 12 }}>PassIt collecte uniquement email et prénom. Aucune donnée bancaire stockée. Aucune pub. Suppression possible à tout moment.</p>
+        </div>
+
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8 }}>Article 1 — Responsable du traitement</div>
+        <p>Optimeo Agency · contact@passit.fr · privacy@passit.fr</p>
+
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 2 — Données collectées</div>
+        <div style={{ background: '#12121F', borderRadius: 10, padding: '12px 14px' }}>
+          {[
+            ['Email', 'Authentification', '3 ans après dernière connexion'],
+            ['Prénom', 'Personnalisation', '3 ans après dernière connexion'],
+            ['Progression quiz', 'Rapport parent', 'Durée du compte'],
+            ['Consentement RGPD', 'Obligation légale', '5 ans'],
+            ['ID Stripe', 'Audit comptable', '10 ans'],
+          ].map(([donnee, finalite, duree]) => (
+            <div key={donnee} style={{ padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontWeight: 600, color: '#F0F0FF', fontSize: 12 }}>{donnee}</span>
+                <span style={{ fontSize: 11, color: '#64748B' }}>{duree}</span>
+              </div>
+              <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>{finalite}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 3 — Protection des mineurs</div>
+        <p>PassIt est destinée aux élèves de 3e (~15 ans). Pour les mineurs de moins de 15 ans, le consentement parental est requis. Aucun profilage commercial n'est effectué sur les données des mineurs.</p>
+
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 4 — Sous-traitants</div>
+        <div style={{ background: '#12121F', borderRadius: 10, padding: '12px 14px' }}>
+          {[
+            ['Supabase (USA)', 'Base de données', 'SCC'],
+            ['Vercel (USA)', 'Hébergement app', 'SCC'],
+            ['Brevo (France)', 'Emails', 'Hébergement EU ✅'],
+            ['Stripe (USA)', 'Paiement', 'SCC + PCI-DSS'],
+            ['Anthropic (USA)', 'IA pédagogique', 'Données anonymisées'],
+          ].map(([nom, role, garantie]) => (
+            <div key={nom} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#F0F0FF' }}>{nom}</div>
+                <div style={{ fontSize: 11, color: '#64748B' }}>{role}</div>
+              </div>
+              <span style={{ fontSize: 11, color: '#00F5A0', background: '#00F5A010', padding: '2px 8px', borderRadius: 20 }}>{garantie}</span>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 5 — Tes droits (RGPD)</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {[
+            ['Accès', 'Obtenir une copie de tes données'],
+            ['Rectification', 'Corriger des données inexactes'],
+            ['Effacement', 'Supprimer ton compte et données'],
+            ['Portabilité', 'Recevoir tes données en CSV'],
+            ['Opposition', 'Refuser un traitement'],
+          ].map(([droit, desc]) => (
+            <div key={droit} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <span style={{ color: '#00F5A0', fontWeight: 700, fontSize: 12, minWidth: 90 }}>{droit}</span>
+              <span style={{ fontSize: 12 }}>{desc}</span>
+            </div>
+          ))}
+        </div>
+        <p style={{ marginTop: 10 }}>Pour exercer tes droits : <span style={{ color: '#00F5A0' }}>privacy@passit.fr</span> — Réponse sous 30 jours.</p>
+
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 6 — Cookies</div>
+        <p>PassIt utilise uniquement un cookie de session fonctionnel (maintien de la connexion). Aucun cookie publicitaire ou de tracking.</p>
+
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 7 — Contact & réclamations</div>
+        <p>DPO : <span style={{ color: '#00F5A0' }}>privacy@passit.fr</span></p>
+        <p style={{ marginTop: 6 }}>Autorité de contrôle : <span style={{ color: '#00F5A0' }}>CNIL — www.cnil.fr</span></p>
+
+        <div style={{ marginTop: 24, padding: '14px', background: '#12121F', borderRadius: 12, fontSize: 12, color: '#475569', textAlign: 'center' }}>
+          Conforme au RGPD (UE) 2016/679 · Optimeo Agency · Avril 2026
+        </div>
+      </div>
+    </div>
   </div>
 );
 // ── RESET PASSWORD ───────────────────────────────────────────
@@ -720,6 +885,8 @@ export default function App() {
   const [selectedMatiere, setSelectedMatiere] = useState(null);
   const [selectedChapitre, setSelectedChapitre] = useState(null);
   const [selectedMode, setSelectedMode] = useState(null);
+  const [showCGU, setShowCGU] = useState(false);
+  const [showRGPD, setShowRGPD] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -762,6 +929,8 @@ export default function App() {
       window.location.reload();
     }} />
   );
+  if (showCGU) return <CGUScreen onBack={() => setShowCGU(false)} />;
+  if (showRGPD) return <RGPDScreen onBack={() => setShowRGPD(false)} />;
   if (!hasAccess) return <PaywallScreen user={dbUser} onLogout={handleLogout} />;
 
   return (
@@ -773,7 +942,7 @@ export default function App() {
         {selectedMatiere && selectedChapitre && !selectedMode && <ModeScreen matiere={selectedMatiere} chapitre={selectedChapitre} onSelect={m => setSelectedMode(m)} onBack={() => setSelectedChapitre(null)} />}
         {selectedMatiere && selectedChapitre && selectedMode === 'Quiz' && <QuizScreen matiere={selectedMatiere} chapitre={selectedChapitre} onBack={() => setSelectedMode(null)} userEmail={dbUser?.email} />}
         {selectedMatiere && selectedChapitre && selectedMode && selectedMode !== 'Quiz' && <ContentScreen matiere={selectedMatiere} chapitre={selectedChapitre} mode={selectedMode} onBack={() => setSelectedMode(null)} />}
-        {tab === 'profil' && !selectedMatiere && <ProfilScreen user={dbUser} onLogout={handleLogout} />}
+        {tab === 'profil' && !selectedMatiere && <ProfilScreen user={dbUser} onLogout={handleLogout} onShowCGU={() => setShowCGU(true)} onShowRGPD={() => setShowRGPD(true)} />}
       </div>
       {!selectedMatiere && <NavBar active={tab} onChange={t => { setTab(t); }} />}
     </div>
