@@ -601,10 +601,9 @@ const ModeScreen = ({ matiere, chapitre, onSelect, onBack }) => (
 );
 
 // ── PROFIL ───────────────────────────────────────────────────
-const ProfilScreen = ({ user, onLogout }) => {
+const ProfilScreen = ({ user, onLogout, onShowCGU, onShowRGPD }) => {
   const statusColors = { trial: '#378ADD', premium: '#10B981', expired: '#EF4444' };
   const statusLabels = { trial: 'Essai gratuit', premium: 'Premium ✅', expired: 'Expiré' };
-  const ProfilScreen = ({ user, onLogout, onShowCGU, onShowRGPD }) => {
   return (
     <div style={{ padding: '24px 16px' }}>
       <div style={{ marginBottom: 24 }}><Logo size={22} /><div style={{ fontSize: 12, color: '#475569', marginTop: 4 }}>Mon profil</div></div>
