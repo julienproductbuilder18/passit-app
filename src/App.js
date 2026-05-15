@@ -66,17 +66,6 @@ const Logo = ({ size = 32 }) => (
 // ── AUTH ─────────────────────────────────────────────────────
 const AuthScreen = () => {
   const [email, setEmail] = useState('');
-  const [prenom, setPrenom] = useState('');
-  const [isLogin, setIsLogin] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
-  const [consent, setConsent] = useState(false);
-  const [minor, setMinor] = useState(false);
-  const [parentEmail, setParentEmail] = useState('');
-  const [error, setError] = useState('');
-
-  const AuthScreen = () => {
-  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [prenom, setPrenom] = useState('');
