@@ -715,7 +715,156 @@ const ProfilScreen = ({ user, onLogout, onShowCGU, onShowRGPD }) => {
     </div>
   );
 };
+// ── STATISTIQUES ─────────────────────────────────────────────
+const StatsScreen = ({ userEmail, matieres }) => {
+  const [stats, setStats] = useState([]);
+  const [loading, setLoading] = useState(true);
 
+  useEffect(() => { loadStats(); }, []);
+
+  const loadStats = async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from('quiz_results')
+      .select('*')
+      .eq('user_email', userEmail)
+      .order('date_quiz', { ascending: false });
+    setStats(data || []);
+    setLoading(false);
+  };
+
+  const statsByMatiere = stats.reduce((acc, quiz) => {
+    if (!acc[quiz.matiere]) acc[quiz.matiere] = { total: 0, score: 0, count: 0 };
+    acc[quiz.matiere].total += quiz.total_questions;
+    acc[quiz.matiere].score += quiz.score;
+    acc[quiz.matiere].count += 1;
+    return acc;
+  }, {});
+
+  const globalPct = stats.length
+    ? Math.round(stats.reduce((a, q) => a + q.pourcentage, 0) / stats.length)
+    : 0;
+
+  const matieresSorted = Object.entries(statsByMatiere)
+    .map(([nom, s]) => ({ nom, pct: Math.round((s.score / s.total) * 100), count: s.count }))
+    .sort((a, b) => a.pct - b.pct);
+
+  const toRevise = matieresSorted.filter(m => m.pct < 60);
+  const mastered = matieresSorted.filter(m => m.pct >= 80);
+
+  const matiere = (nom) => matieres.find(m => m.nom === nom);
+
+  if (loading) return (
+    <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+      <div style={{ width: 44, height: 44, borderRadius: '50%', border: '3px solid #00F5A030', borderTop: '3px solid #00F5A0', animation: 'spin 1s linear infinite', margin: '0 auto 16px' }} />
+      <div style={{ color: '#64748B' }}>Chargement des statistiques…</div>
+    </div>
+  );
+
+  return (
+    <div style={{ padding: '24px 16px 24px' }}>
+      <div style={{ marginBottom: 24 }}>
+        <Logo size={22} />
+        <div style={{ fontSize: 12, color: '#475569', marginTop: 4 }}>Mes statistiques</div>
+      </div>
+
+      {stats.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '40px 20px', color: '#64748B' }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>📊</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: '#F0F0FF', marginBottom: 8 }}>Aucun quiz pour l'instant</div>
+          <div style={{ fontSize: 13 }}>Fais ton premier quiz pour voir tes statistiques !</div>
+        </div>
+      ) : (
+        <>
+          {/* Score global */}
+          <div style={{ ...S.card(), marginBottom: 16, textAlign: 'center', background: 'linear-gradient(135deg, #0D2A1A, #12121F)', border: '1px solid #00F5A030' }}>
+            <div style={{ fontSize: 11, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Score global</div>
+            <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 52, fontWeight: 900, color: globalPct >= 80 ? '#00F5A0' : globalPct >= 60 ? '#FCD34D' : '#EF4444' }}>{globalPct}%</div>
+            <div style={{ fontSize: 13, color: '#64748B', marginTop: 4 }}>{stats.length} quiz réalisé{stats.length > 1 ? 's' : ''}</div>
+            <div style={{ marginTop: 12, height: 8, background: 'rgba(255,255,255,0.1)', borderRadius: 4 }}>
+              <div style={{ height: '100%', borderRadius: 4, background: globalPct >= 80 ? '#00F5A0' : globalPct >= 60 ? '#FCD34D' : '#EF4444', width: `${globalPct}%`, transition: 'width 0.5s' }} />
+            </div>
+          </div>
+
+          {/* Matières à retravailler */}
+          {toRevise.length > 0 && (
+            <>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#EF4444', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>📖 À retravailler</div>
+              {toRevise.map(m => (
+                <div key={m.nom} style={{ ...S.card(), marginBottom: 10, border: '1px solid #EF444430' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 20 }}>{matiere(m.nom)?.emoji || '📚'}</span>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#F0F0FF' }}>{m.nom}</div>
+                        <div style={{ fontSize: 11, color: '#64748B' }}>{m.count} quiz réalisé{m.count > 1 ? 's' : ''}</div>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: '#EF4444', fontFamily: "'Unbounded', sans-serif" }}>{m.pct}%</span>
+                  </div>
+                  <div style={{ height: 6, background: 'rgba(255,255,255,0.08)', borderRadius: 3 }}>
+                    <div style={{ height: '100%', borderRadius: 3, background: '#EF4444', width: `${m.pct}%` }} />
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+
+          {/* Toutes les matières */}
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#334155', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10, marginTop: 16 }}>📊 Toutes les matières</div>
+          {matieresSorted.map(m => {
+            const color = m.pct >= 80 ? '#00F5A0' : m.pct >= 60 ? '#FCD34D' : '#EF4444';
+            return (
+              <div key={m.nom} style={{ ...S.card(), marginBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 20 }}>{matiere(m.nom)?.emoji || '📚'}</span>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#F0F0FF' }}>{m.nom}</div>
+                      <div style={{ fontSize: 11, color: '#64748B' }}>{m.count} quiz réalisé{m.count > 1 ? 's' : ''}</div>
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 14, fontWeight: 800, color, fontFamily: "'Unbounded', sans-serif" }}>{m.pct}%</span>
+                </div>
+                <div style={{ height: 6, background: 'rgba(255,255,255,0.08)', borderRadius: 3 }}>
+                  <div style={{ height: '100%', borderRadius: 3, background: color, width: `${m.pct}%`, transition: 'width 0.5s' }} />
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Derniers quiz */}
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#334155', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10, marginTop: 16 }}>🕐 Derniers quiz</div>
+          {stats.slice(0, 5).map((q, i) => (
+            <div key={i} style={{ ...S.card(), marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#F0F0FF' }}>{q.chapitre}</div>
+                <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>{q.matiere} · {new Date(q.date_quiz).toLocaleDateString('fr-FR')}</div>
+              </div>
+              <span style={{ fontSize: 14, fontWeight: 800, fontFamily: "'Unbounded', sans-serif", color: q.pourcentage >= 80 ? '#00F5A0' : q.pourcentage >= 60 ? '#FCD34D' : '#EF4444' }}>{q.pourcentage}%</span>
+            </div>
+          ))}
+
+          {/* Matières maîtrisées */}
+          {mastered.length > 0 && (
+            <>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#00F5A0', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10, marginTop: 16 }}>🌟 Maîtrisées</div>
+              {mastered.map(m => (
+                <div key={m.nom} style={{ ...S.card(), marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid #00F5A020' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 20 }}>{matiere(m.nom)?.emoji || '📚'}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#F0F0FF' }}>{m.nom}</span>
+                  </div>
+                  <span style={{ fontSize: 14, fontWeight: 800, color: '#00F5A0', fontFamily: "'Unbounded', sans-serif" }}>{m.pct}% ✅</span>
+                </div>
+              ))}
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
 // ── NAV ──────────────────────────────────────────────────────
 const NavBar = ({ active, onChange }) => (
   <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, background: '#0A0A18', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', padding: '8px 0 20px', zIndex: 100 }}>
@@ -781,7 +930,9 @@ export default function App() {
 
   if (showCGU) return <CGUScreen onBack={() => setShowCGU(false)} />;
   if (showRGPD) return <RGPDScreen onBack={() => setShowRGPD(false)} />;
-  if (!hasAccess) return <PaywallScreen user={dbUser} onLogout={handleLogout} />;
+  const isNewUser = dbUser?.statut === 'trial' && dbUser?.date_inscription && 
+  (new Date() - new Date(dbUser.date_inscription)) < 60000;
+if (!hasAccess && !isNewUser) return <PaywallScreen user={dbUser} onLogout={handleLogout} />;
 
   return (
     <div style={S.app}>
