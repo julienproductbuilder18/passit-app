@@ -73,6 +73,8 @@ const AuthScreen = () => {
   const [loading, setLoading] = useState(false);
   const [consent, setConsent] = useState(false);
   const [minor, setMinor] = useState(false);
+  const [typeExamen, setTypeExamen] = useState('brevet');
+  const [filiereBac, setFiliereBac] = useState('bac_general');
   const [parentEmail, setParentEmail] = useState('');
   const [error, setError] = useState('');
   const [resetSent, setResetSent] = useState(false);
@@ -115,7 +117,47 @@ const AuthScreen = () => {
           consentement_rgpd: consent,
         }, { onConflict: 'email', ignoreDuplicates: true });
         if (upsertErr) throw upsertErr;
-
+{!isLogin && (
+  <div>
+    <label style={S.label}>Je prépare</label>
+    <div style={{ display: 'flex', gap: 8, marginBottom: typeExamen === 'brevet' ? 0 : 8 }}>
+      {[
+        { id: 'brevet', label: '🎓 Brevet' },
+        { id: 'bac', label: '📚 Bac' },
+      ].map(({ id, label }) => (
+        <button key={id} type="button"
+          onClick={() => setTypeExamen(id)}
+          style={{
+            flex: 1, padding: '10px', borderRadius: 10, border: `2px solid ${typeExamen === id ? '#00F5A0' : 'rgba(255,255,255,0.1)'}`,
+            background: typeExamen === id ? '#00F5A015' : 'transparent',
+            color: typeExamen === id ? '#00F5A0' : '#64748B',
+            fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: "'Outfit', sans-serif"
+          }}>{label}</button>
+      ))}
+    </div>
+    {typeExamen === 'bac' && (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+        <label style={S.label}>Ma filière</label>
+        {[
+          { id: 'bac_general', label: '🎯 Bac Général' },
+          { id: 'bac_techno', label: '⚙️ Bac Technologique' },
+          { id: 'bac_pro', label: '🔧 Bac Professionnel' },
+        ].map(({ id, label }) => (
+          <button key={id} type="button"
+            onClick={() => setFiliereBac(id)}
+            style={{
+              padding: '10px', borderRadius: 10,
+              border: `2px solid ${filiereBac === id ? '#00F5A0' : 'rgba(255,255,255,0.1)'}`,
+              background: filiereBac === id ? '#00F5A015' : 'transparent',
+              color: filiereBac === id ? '#00F5A0' : '#64748B',
+              fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: "'Outfit', sans-serif",
+              textAlign: 'left'
+            }}>{label}</button>
+        ))}
+      </div>
+    )}
+  </div>
+)}
         // Sauvegarder email parent si fourni
         if (parentEmail) {
           await supabase.from('parents_emails').upsert({
