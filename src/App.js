@@ -868,7 +868,7 @@ const StatsScreen = ({ userEmail, matieres }) => {
 // ── NAV ──────────────────────────────────────────────────────
 const NavBar = ({ active, onChange }) => (
   <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, background: '#0A0A18', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', padding: '8px 0 20px', zIndex: 100 }}>
-    {[{ id: 'home', emoji: '🏠', label: 'Accueil' }, { id: 'profil', emoji: '👤', label: 'Profil' }].map(tab => (
+    {[{ id: 'home', emoji: '🏠', label: 'Accueil' }, { id: 'stats', emoji: '📊', label: 'Stats' }, { id: 'profil', emoji: '👤', label: 'Profil' }].map(tab => (
       <button key={tab.id} onClick={() => onChange(tab.id)} style={{ flex: 1, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '4px 0' }}>
         <span style={{ fontSize: 22 }}>{tab.emoji}</span>
         <span style={{ fontSize: 11, fontWeight: active === tab.id ? 700 : 400, color: active === tab.id ? '#00F5A0' : '#475569' }}>{tab.label}</span>
@@ -943,6 +943,7 @@ if (!hasAccess && !isNewUser) return <PaywallScreen user={dbUser} onLogout={hand
         {selectedMatiere && selectedChapitre && !selectedMode && <ModeScreen matiere={selectedMatiere} chapitre={selectedChapitre} onSelect={m => setSelectedMode(m)} onBack={() => setSelectedChapitre(null)} />}
         {selectedMatiere && selectedChapitre && selectedMode === 'Quiz' && <QuizScreen matiere={selectedMatiere} chapitre={selectedChapitre} onBack={() => setSelectedMode(null)} userEmail={dbUser?.email} typeExamen={dbUser?.type_examen || 'brevet'} />}
         {selectedMatiere && selectedChapitre && selectedMode && selectedMode !== 'Quiz' && <ContentScreen matiere={selectedMatiere} chapitre={selectedChapitre} mode={selectedMode} onBack={() => setSelectedMode(null)} typeExamen={dbUser?.type_examen || 'brevet'} />}
+        {tab === 'stats' && !selectedMatiere && <StatsScreen userEmail={dbUser?.email} matieres={matieres} />}
         {tab === 'profil' && !selectedMatiere && <ProfilScreen user={dbUser} onLogout={handleLogout} onShowCGU={() => setShowCGU(true)} onShowRGPD={() => setShowRGPD(true)} />}
       </div>
       {!selectedMatiere && <NavBar active={tab} onChange={t => setTab(t)} />}
