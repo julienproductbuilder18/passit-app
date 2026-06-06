@@ -10,7 +10,8 @@ const daysUntilExam = (type) => {
 };
 
 const MAKE_WEBHOOK = 'https://hook.eu1.make.com/74j2nhcm32rvyrvajiuvsuow9shohhqy';
-const STRIPE_BREVET = 'https://buy.stripe.com/3cI3cufFH4DH1Hx1Fo33W00';
+const STRIPE_BREVET = 'https://buy.stripe.com/9B6fZgbpr4DH2LB1Fo33W01';
+const STRIPE_BAC = 'https://buy.stripe.com/28E00i8dffil99Z0Bk33W02';
 
 const buildQuizPrompt = (matiere, chapitre, typeExamen = 'brevet') => {
   const niveaux = {
@@ -245,7 +246,7 @@ const PaywallScreen = ({ user, onLogout }) => (
             </div>
             <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 18, fontWeight: 900, color: '#00F5A0' }}>5€</div>
           </div>
-          <a href={STRIPE_BREVET} target="_blank" rel="noreferrer" style={{ display: 'block', textAlign: 'center', background: '#00F5A0', color: '#080812', borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 700, textDecoration: 'none' }}>
+          <a href={user?.type_examen?.startsWith('bac') ? STRIPE_BAC : STRIPE_BREVET} target="_blank" rel="noreferrer" style={{ display: 'block', textAlign: 'center', background: '#00F5A0', color: '#080812', borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 700, textDecoration: 'none' }}>
             Choisir cette formule →
           </a>
         </div>
@@ -700,7 +701,7 @@ const ProfilScreen = ({ user, onLogout, onShowCGU, onShowRGPD }) => {
           <div style={{ ...S.card(), border: '1px solid #00F5A030' }}>
             <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>🚀 Passer à Premium</div>
             <div style={{ fontSize: 13, color: '#64748B', marginBottom: 14 }}>Accès illimité jusqu'à l'examen pour 5€</div>
-            <a href={STRIPE_BREVET} target="_blank" rel="noreferrer" style={{ display: 'block', textAlign: 'center', background: '#00F5A0', color: '#080812', borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 700, textDecoration: 'none' }}>S'abonner →</a>
+            <a href={user?.type_examen?.startsWith('bac') ? STRIPE_BAC : STRIPE_BREVET} target="_blank" rel="noreferrer" style={{ display: 'block', textAlign: 'center', background: '#00F5A0', color: '#080812', borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 700, textDecoration: 'none' }}>S'abonner →</a>
           </div>
         )}
         <div style={S.card()}>
