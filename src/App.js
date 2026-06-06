@@ -6,11 +6,18 @@ const BREVET_DATE = new Date('2026-06-25');
 const daysUntilBrevet = () => Math.max(0, Math.ceil((BREVET_DATE - new Date()) / 86400000));
 
 // ── PROMPTS ──────────────────────────────────────────────────
-const buildQuizPrompt = (matiere, chapitre) => `Tu es un professeur expert pour le brevet des collèges (3e, France). Génère exactement 10 questions de quiz sur "${chapitre}" en ${matiere}.
+const buildQuizPrompt = (matiere, chapitre, typeExamen = 'brevet') => {
+  const niveaux = {
+    brevet: 'élève de 3e préparant le Brevet des collèges',
+    bac_general: 'lycéen de Terminale préparant le Baccalauréat Général',
+    bac_techno: 'lycéen de Terminale préparant le Baccalauréat Technologique',
+    bac_pro: 'lycéen de Terminale préparant le Baccalauréat Professionnel',
+  };
+  const niveau = niveaux[typeExamen] || niveaux.brevet;
+  return `Tu es un professeur expert. Génère exactement 10 questions de quiz sur "${chapitre}" en ${matiere} pour un ${niveau}. Respecte le programme officiel de l'Éducation nationale française.
 
 RÈGLES STRICTES :
 - Mix de QCM (une seule bonne réponse) et QCM multiple (plusieurs bonnes réponses)
-- Pour chaque question, indique clairement le type
 - Réponds UNIQUEMENT en JSON valide, sans texte avant ou après
 
 FORMAT JSON EXACT :
@@ -22,8 +29,11 @@ FORMAT JSON EXACT :
       "question": "texte de la question",
       "options": ["option A", "option B", "option C", "option D"],
       "correct": [0],
-      "explication": "explication courte de la bonne réponse"
-    },
+      "explication": "explication courte"
+    }
+  ]
+}`;
+};
     {
       "id": 2,
       "type": "multiple",
@@ -39,8 +49,16 @@ Pour type "single" : correct contient UN seul index.
 Pour type "multiple" : correct contient PLUSIEURS index.
 Génère exactement 10 questions variées et adaptées au niveau 3e.`;
 
-const buildPrompt = (mode, matiere, chapitre) => {
-  const base = `Tu es un professeur expert pour préparer le brevet des collèges (niveau 3e en France). Réponds en français, de façon claire et adaptée à un élève de 15 ans.`;
+const buildPrompt = (mode, matiere, chapitre, typeExamen = 'brevet') => {
+  const niveaux = {
+    brevet: 'élève de 3e préparant le Brevet des collèges',
+    bac_general: 'lycéen de Terminale préparant le Baccalauréat Général',
+    bac_techno: 'lycéen de Terminale préparant le Baccalauréat Technologique',
+    bac_pro: 'lycéen de Terminale préparant le Baccalauréat Professionnel',
+  };
+  const niveau = niveaux[typeExamen] || niveaux.brevet;
+  const base = `Tu es un professeur expert pour préparer les examens en France. Réponds en français, de façon claire et adaptée à un ${niveau}. Respecte strictement le programme officiel de l'Éducation nationale française.`;
+
   if (mode === 'Fiche de cours') return `${base}\nGénère une fiche de révision sur "${chapitre}" en ${matiere}.\nStructure :\n🎯 L'essentiel à retenir (3-5 points clés)\n📚 Explication détaillée\n💡 Astuce mémo\n⚠️ Erreur classique à éviter`;
   if (mode === 'Exercice guidé') return `${base}\nCrée un exercice progressif sur "${chapitre}" en ${matiere}.\nFormat : 📝 Énoncé / Étape 1 / Étape 2 / Étape 3 / 🎯 Solution complète`;
 };
@@ -948,7 +966,7 @@ export default function App() {
     setLoading(true);
     const [{ data: user }, { data: mats }, { data: chaps }] = await Promise.all([
       supabase.from('users').select('*').eq('email', email).single(),
-      supabase.from('matieres').select('*').eq('actif', true).order('ordre'),
+      supabase.from('matieres').select('*').eq('actif', true).eq('type_examen', user?.type_examen || 'brevet').order('ordre'),
       supabase.from('chapitres').select('*').eq('actif', true).order('ordre'),
     ]);
     setDbUser(user); setMatieres(mats || []); setChapitres(chaps || []);
