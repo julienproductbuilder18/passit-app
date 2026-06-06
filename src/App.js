@@ -275,6 +275,46 @@ const AuthScreen = () => {
           {!isLogin && (
             <>
               <div>
+                <div>
+  <label style={S.label}>Je prépare</label>
+  <div style={{ display: 'flex', gap: 8, marginBottom: typeExamen === 'brevet' ? 0 : 8 }}>
+    {[
+      { id: 'brevet', label: '🎓 Brevet' },
+      { id: 'bac', label: '📚 Bac' },
+    ].map(({ id, label }) => (
+      <button key={id} type="button"
+        onClick={() => setTypeExamen(id)}
+        style={{
+          flex: 1, padding: '10px', borderRadius: 10,
+          border: `2px solid ${typeExamen === id ? '#00F5A0' : 'rgba(255,255,255,0.1)'}`,
+          background: typeExamen === id ? '#00F5A015' : 'transparent',
+          color: typeExamen === id ? '#00F5A0' : '#64748B',
+          fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: "'Outfit', sans-serif"
+        }}>{label}</button>
+    ))}
+  </div>
+  {typeExamen === 'bac' && (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+      <label style={S.label}>Ma filière</label>
+      {[
+        { id: 'bac_general', label: '🎯 Bac Général' },
+        { id: 'bac_techno', label: '⚙️ Bac Technologique' },
+        { id: 'bac_pro', label: '🔧 Bac Professionnel' },
+      ].map(({ id, label }) => (
+        <button key={id} type="button"
+          onClick={() => setFiliereBac(id)}
+          style={{
+            padding: '10px', borderRadius: 10,
+            border: `2px solid ${filiereBac === id ? '#00F5A0' : 'rgba(255,255,255,0.1)'}`,
+            background: filiereBac === id ? '#00F5A015' : 'transparent',
+            color: filiereBac === id ? '#00F5A0' : '#64748B',
+            fontWeight: 600, fontSize: 13, cursor: 'pointer',
+            fontFamily: "'Outfit', sans-serif", textAlign: 'left'
+          }}>{label}</button>
+      ))}
+    </div>
+  )}
+</div>
                 <label style={S.label}>Email d'un parent (optionnel)</label>
                 <input style={S.input} placeholder="parent@email.com" type="email" value={parentEmail} onChange={e => setParentEmail(e.target.value)} />
                 <div style={{ fontSize: 11, color: '#475569', marginTop: 6 }}>Pour recevoir le rapport quotidien de progression</div>
