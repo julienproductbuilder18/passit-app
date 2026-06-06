@@ -32,19 +32,7 @@ FORMAT JSON EXACT :
       "explication": "explication courte"
     }
   ]
-}`;
-};
-    {
-      "id": 2,
-      "type": "multiple",
-      "question": "texte de la question (plusieurs réponses possibles)",
-      "options": ["option A", "option B", "option C", "option D"],
-      "correct": [0, 2],
-      "explication": "explication courte"
-    }
-  ]
-}
-
+}`
 Pour type "single" : correct contient UN seul index.
 Pour type "multiple" : correct contient PLUSIEURS index.
 Génère exactement 10 questions variées et adaptées au niveau 3e.`;
