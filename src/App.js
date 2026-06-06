@@ -3,9 +3,15 @@ import { supabase } from './supabaseClient';
 import './App.css';
 
 const BREVET_DATE = new Date('2026-06-25');
-const daysUntilBrevet = () => Math.max(0, Math.ceil((BREVET_DATE - new Date()) / 86400000));
+const BAC_DATE = new Date('2026-06-17');
+const daysUntilExam = (type) => {
+  const date = type?.startsWith('bac') ? BAC_DATE : BREVET_DATE;
+  return Math.max(0, Math.ceil((date - new Date()) / 86400000));
+};
 
-// ── PROMPTS ──────────────────────────────────────────────────
+const MAKE_WEBHOOK = 'https://hook.eu1.make.com/74j2nhcm32rvyrvajiuvsuow9shohhqy';
+const STRIPE_BREVET = 'https://buy.stripe.com/3cI3cufFH4DH1Hx1Fo33W00';
+
 const buildQuizPrompt = (matiere, chapitre, typeExamen = 'brevet') => {
   const niveaux = {
     brevet: 'élève de 3e préparant le Brevet des collèges',
@@ -33,9 +39,11 @@ FORMAT JSON EXACT :
     }
   ]
 }
-Pour type "single" : correct contient UN seul index.
-Pour type "multiple" : correct contient PLUSIEURS index.
-Génère exactement 10 questions variées et adaptées au niveau 3e.`;
+
+Pour type single : correct contient UN seul index.
+Pour type multiple : correct contient PLUSIEURS index.
+Génère exactement 10 questions variées et adaptées au niveau.`;
+};
 
 const buildPrompt = (mode, matiere, chapitre, typeExamen = 'brevet') => {
   const niveaux = {
@@ -46,12 +54,10 @@ const buildPrompt = (mode, matiere, chapitre, typeExamen = 'brevet') => {
   };
   const niveau = niveaux[typeExamen] || niveaux.brevet;
   const base = `Tu es un professeur expert pour préparer les examens en France. Réponds en français, de façon claire et adaptée à un ${niveau}. Respecte strictement le programme officiel de l'Éducation nationale française.`;
-
   if (mode === 'Fiche de cours') return `${base}\nGénère une fiche de révision sur "${chapitre}" en ${matiere}.\nStructure :\n🎯 L'essentiel à retenir (3-5 points clés)\n📚 Explication détaillée\n💡 Astuce mémo\n⚠️ Erreur classique à éviter`;
   if (mode === 'Exercice guidé') return `${base}\nCrée un exercice progressif sur "${chapitre}" en ${matiere}.\nFormat : 📝 Énoncé / Étape 1 / Étape 2 / Étape 3 / 🎯 Solution complète`;
 };
 
-// ── STYLES ───────────────────────────────────────────────────
 const S = {
   app: { maxWidth: 430, margin: '0 auto', minHeight: '100vh', background: '#080812', color: '#F0F0FF', fontFamily: "'Outfit', sans-serif", position: 'relative' },
   statusBar: { background: '#080812', height: 44, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', fontSize: 12, color: 'rgba(255,255,255,0.5)', flexShrink: 0 },
@@ -79,9 +85,9 @@ const AuthScreen = () => {
   const [loading, setLoading] = useState(false);
   const [consent, setConsent] = useState(false);
   const [minor, setMinor] = useState(false);
+  const [parentEmail, setParentEmail] = useState('');
   const [typeExamen, setTypeExamen] = useState('brevet');
   const [filiereBac, setFiliereBac] = useState('bac_general');
-  const [parentEmail, setParentEmail] = useState('');
   const [error, setError] = useState('');
   const [resetSent, setResetSent] = useState(false);
 
@@ -94,24 +100,13 @@ const AuthScreen = () => {
     if (!isLogin && !prenom) return setError('Prénom requis');
     if (!isLogin && !consent) return setError('Tu dois accepter les CGU');
     setLoading(true);
-
     try {
       if (isLogin) {
-        // Connexion
-        const { error: signInErr } = await supabase.auth.signInWithPassword({
-          email: email.toLowerCase(),
-          password,
-        });
+        const { error: signInErr } = await supabase.auth.signInWithPassword({ email: email.toLowerCase(), password });
         if (signInErr) throw signInErr;
       } else {
-        // Inscription
-        const { error: signUpErr } = await supabase.auth.signUp({
-          email: email.toLowerCase(),
-          password,
-        });
+        const { error: signUpErr } = await supabase.auth.signUp({ email: email.toLowerCase(), password });
         if (signUpErr) throw signUpErr;
-
-        // Créer l'utilisateur dans la table users
         const trialEnd = new Date();
         trialEnd.setDate(trialEnd.getDate() + 3);
         const { error: upsertErr } = await supabase.from('users').upsert({
@@ -121,68 +116,18 @@ const AuthScreen = () => {
           trial_end: trialEnd.toISOString(),
           statut: 'trial',
           consentement_rgpd: consent,
-          type_examen: typeExamen === 'bac' ? filiereBac : 'brevet', // 👈 AJOUTER
+          type_examen: typeExamen === 'bac' ? filiereBac : 'brevet',
         }, { onConflict: 'email', ignoreDuplicates: true });
         if (upsertErr) throw upsertErr;
-{!isLogin && (
-  <div>
-    <label style={S.label}>Je prépare</label>
-    <div style={{ display: 'flex', gap: 8, marginBottom: typeExamen === 'brevet' ? 0 : 8 }}>
-      {[
-        { id: 'brevet', label: '🎓 Brevet' },
-        { id: 'bac', label: '📚 Bac' },
-      ].map(({ id, label }) => (
-        <button key={id} type="button"
-          onClick={() => setTypeExamen(id)}
-          style={{
-            flex: 1, padding: '10px', borderRadius: 10, border: `2px solid ${typeExamen === id ? '#00F5A0' : 'rgba(255,255,255,0.1)'}`,
-            background: typeExamen === id ? '#00F5A015' : 'transparent',
-            color: typeExamen === id ? '#00F5A0' : '#64748B',
-            fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: "'Outfit', sans-serif"
-          }}>{label}</button>
-      ))}
-    </div>
-    {typeExamen === 'bac' && (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-        <label style={S.label}>Ma filière</label>
-        {[
-          { id: 'bac_general', label: '🎯 Bac Général' },
-          { id: 'bac_techno', label: '⚙️ Bac Technologique' },
-          { id: 'bac_pro', label: '🔧 Bac Professionnel' },
-        ].map(({ id, label }) => (
-          <button key={id} type="button"
-            onClick={() => setFiliereBac(id)}
-            style={{
-              padding: '10px', borderRadius: 10,
-              border: `2px solid ${filiereBac === id ? '#00F5A0' : 'rgba(255,255,255,0.1)'}`,
-              background: filiereBac === id ? '#00F5A015' : 'transparent',
-              color: filiereBac === id ? '#00F5A0' : '#64748B',
-              fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: "'Outfit', sans-serif",
-              textAlign: 'left'
-            }}>{label}</button>
-        ))}
-      </div>
-    )}
-  </div>
-)}
-        // Sauvegarder email parent si fourni
         if (parentEmail) {
           await supabase.from('parents_emails').upsert({
-            user_email: email.toLowerCase(),
-            parent_email: parentEmail.toLowerCase(),
-            actif: true
+            user_email: email.toLowerCase(), parent_email: parentEmail.toLowerCase(), actif: true
           }, { onConflict: 'user_email' });
         }
-
-        // Envoyer webhook à Make
-        await fetch('url 1 : https://hook.eu1.make.com/74j2nhcm32rvyrvajiuvsuow9shohhqy', {
+        await fetch(MAKE_WEBHOOK, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'inscription',
-            email: email.toLowerCase(),
-            prenom,
-          }),
+          body: JSON.stringify({ type: 'inscription', email: email.toLowerCase(), prenom }),
         });
       }
     } catch (e) {
@@ -222,87 +167,40 @@ const AuthScreen = () => {
       <div style={{ ...S.screen, padding: '0 24px', overflowY: 'auto' }}>
         <div style={{ textAlign: 'center', padding: '48px 0 32px' }}>
           <Logo size={42} />
-          <div style={{ marginTop: 12, color: '#64748B', fontSize: 14 }}>L'app brevet de ta génération</div>
+          <div style={{ marginTop: 12, color: '#64748B', fontSize: 14 }}>L'app de révision propulsée par l'IA</div>
           <div style={{ marginTop: 20, background: 'linear-gradient(135deg, #7B2FFF20, #00F5A015)', border: '1px solid #00F5A030', borderRadius: 14, padding: '10px 20px', display: 'inline-block' }}>
             <span style={{ color: '#00F5A0', fontSize: 13, fontWeight: 600 }}>✓ 3 jours gratuits · Sans CB</span>
           </div>
         </div>
-
-        {/* Tabs */}
         <div style={{ display: 'flex', background: '#12121F', borderRadius: 12, padding: 4, marginBottom: 24 }}>
           {['Inscription', 'Connexion'].map((t, i) => (
             <button key={t} onClick={() => { setIsLogin(i === 1); setError(''); }} style={{ flex: 1, background: isLogin === (i === 1) ? '#00F5A0' : 'transparent', color: isLogin === (i === 1) ? '#080812' : '#64748B', border: 'none', borderRadius: 9, padding: '10px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>{t}</button>
           ))}
         </div>
-
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {!isLogin && (
-            <div>
-              <label style={S.label}>Prénom</label>
-              <input style={S.input} placeholder="Ton prénom" value={prenom} onChange={e => setPrenom(e.target.value)} />
-            </div>
-          )}
-
-          <div>
-            <label style={S.label}>Email</label>
-            <input style={S.input} placeholder="ton@email.com" type="email" value={email} onChange={e => setEmail(e.target.value)} />
-          </div>
-
-          <div>
-            <label style={S.label}>Mot de passe</label>
-            <input style={S.input} placeholder={isLogin ? "Ton mot de passe" : "8 caractères minimum"} type="password" value={password} onChange={e => setPassword(e.target.value)} />
-          </div>
-
-          {!isLogin && (
-            <div>
-              <label style={S.label}>Confirmer le mot de passe</label>
-              <input style={S.input} placeholder="Répète ton mot de passe" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} />
-            </div>
-          )}
-
+          {!isLogin && <div><label style={S.label}>Prénom</label><input style={S.input} placeholder="Ton prénom" value={prenom} onChange={e => setPrenom(e.target.value)} /></div>}
+          <div><label style={S.label}>Email</label><input style={S.input} placeholder="ton@email.com" type="email" value={email} onChange={e => setEmail(e.target.value)} /></div>
+          <div><label style={S.label}>Mot de passe</label><input style={S.input} placeholder={isLogin ? 'Ton mot de passe' : '8 caractères minimum'} type="password" value={password} onChange={e => setPassword(e.target.value)} /></div>
+          {!isLogin && <div><label style={S.label}>Confirmer le mot de passe</label><input style={S.input} placeholder="Répète ton mot de passe" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} /></div>}
           {!isLogin && (
             <>
               <div>
-                <div>
-  <label style={S.label}>Je prépare</label>
-  <div style={{ display: 'flex', gap: 8, marginBottom: typeExamen === 'brevet' ? 0 : 8 }}>
-    {[
-      { id: 'brevet', label: '🎓 Brevet' },
-      { id: 'bac', label: '📚 Bac' },
-    ].map(({ id, label }) => (
-      <button key={id} type="button"
-        onClick={() => setTypeExamen(id)}
-        style={{
-          flex: 1, padding: '10px', borderRadius: 10,
-          border: `2px solid ${typeExamen === id ? '#00F5A0' : 'rgba(255,255,255,0.1)'}`,
-          background: typeExamen === id ? '#00F5A015' : 'transparent',
-          color: typeExamen === id ? '#00F5A0' : '#64748B',
-          fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: "'Outfit', sans-serif"
-        }}>{label}</button>
-    ))}
-  </div>
-  {typeExamen === 'bac' && (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-      <label style={S.label}>Ma filière</label>
-      {[
-        { id: 'bac_general', label: '🎯 Bac Général' },
-        { id: 'bac_techno', label: '⚙️ Bac Technologique' },
-        { id: 'bac_pro', label: '🔧 Bac Professionnel' },
-      ].map(({ id, label }) => (
-        <button key={id} type="button"
-          onClick={() => setFiliereBac(id)}
-          style={{
-            padding: '10px', borderRadius: 10,
-            border: `2px solid ${filiereBac === id ? '#00F5A0' : 'rgba(255,255,255,0.1)'}`,
-            background: filiereBac === id ? '#00F5A015' : 'transparent',
-            color: filiereBac === id ? '#00F5A0' : '#64748B',
-            fontWeight: 600, fontSize: 13, cursor: 'pointer',
-            fontFamily: "'Outfit', sans-serif", textAlign: 'left'
-          }}>{label}</button>
-      ))}
-    </div>
-  )}
-</div>
+                <label style={S.label}>Je prépare</label>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  {[{ id: 'brevet', label: '🎓 Brevet' }, { id: 'bac', label: '📚 Bac' }].map(({ id, label }) => (
+                    <button key={id} type="button" onClick={() => setTypeExamen(id)} style={{ flex: 1, padding: '10px', borderRadius: 10, border: `2px solid ${typeExamen === id ? '#00F5A0' : 'rgba(255,255,255,0.1)'}`, background: typeExamen === id ? '#00F5A015' : 'transparent', color: typeExamen === id ? '#00F5A0' : '#64748B', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>{label}</button>
+                  ))}
+                </div>
+                {typeExamen === 'bac' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <label style={S.label}>Ma filière</label>
+                    {[{ id: 'bac_general', label: '🎯 Bac Général' }, { id: 'bac_techno', label: '⚙️ Bac Technologique' }, { id: 'bac_pro', label: '🔧 Bac Professionnel' }].map(({ id, label }) => (
+                      <button key={id} type="button" onClick={() => setFiliereBac(id)} style={{ padding: '10px', borderRadius: 10, border: `2px solid ${filiereBac === id ? '#00F5A0' : 'rgba(255,255,255,0.1)'}`, background: filiereBac === id ? '#00F5A015' : 'transparent', color: filiereBac === id ? '#00F5A0' : '#64748B', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: "'Outfit', sans-serif", textAlign: 'left' }}>{label}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div>
                 <label style={S.label}>Email d'un parent (optionnel)</label>
                 <input style={S.input} placeholder="parent@email.com" type="email" value={parentEmail} onChange={e => setParentEmail(e.target.value)} />
                 <div style={{ fontSize: 11, color: '#475569', marginTop: 6 }}>Pour recevoir le rapport quotidien de progression</div>
@@ -319,29 +217,18 @@ const AuthScreen = () => {
               </div>
             </>
           )}
-
-          {error && (
-            <div style={{ background: '#FEF2F2', borderRadius: 10, padding: '10px 14px', color: '#991B1B', fontSize: 13 }}>⚠️ {error}</div>
-          )}
-
+          {error && <div style={{ background: '#FEF2F2', borderRadius: 10, padding: '10px 14px', color: '#991B1B', fontSize: 13 }}>⚠️ {error}</div>}
           <button style={S.btn()} onClick={handleSubmit} disabled={loading}>
             {loading ? '...' : isLogin ? '🔓 Se connecter' : '🚀 Démarrer 3 jours gratuits'}
           </button>
-
-          {isLogin && (
-            <button style={{ background: 'none', border: 'none', color: '#64748B', fontSize: 13, cursor: 'pointer', textAlign: 'center', marginTop: 4 }} onClick={handleForgotPassword}>
-              Mot de passe oublié ?
-            </button>
-          )}
+          {isLogin && <button style={{ background: 'none', border: 'none', color: '#64748B', fontSize: 13, cursor: 'pointer', textAlign: 'center', marginTop: 4 }} onClick={handleForgotPassword}>Mot de passe oublié ?</button>}
         </div>
-
-        <div style={{ textAlign: 'center', marginTop: 32, color: '#334155', fontSize: 12, lineHeight: 1.6, paddingBottom: 32 }}>
-          🔒 Sans publicité · Sans données revendues · Conforme RGPD
-        </div>
+        <div style={{ textAlign: 'center', marginTop: 32, color: '#334155', fontSize: 12, lineHeight: 1.6, paddingBottom: 32 }}>🔒 Sans publicité · Sans données revendues · Conforme RGPD</div>
       </div>
     </div>
   );
 };
+
 // ── PAYWALL ──────────────────────────────────────────────────
 const PaywallScreen = ({ user, onLogout }) => (
   <div style={S.app}>
@@ -352,10 +239,13 @@ const PaywallScreen = ({ user, onLogout }) => (
       <div style={{ width: '100%', marginTop: 32 }}>
         <div style={{ ...S.card(), border: '1px solid #00F5A030' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <div><div style={{ fontWeight: 700, fontSize: 16 }}>🎓 Brevet</div><div style={{ color: '#64748B', fontSize: 13, marginTop: 2 }}>Jusqu'au 30 juin</div></div>
-            <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 18, fontWeight: 900, color: '#00F5A0' }}>9,99€</div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 16 }}>{user?.type_examen?.startsWith('bac') ? '📚 Bac' : '🎓 Brevet'}</div>
+              <div style={{ color: '#64748B', fontSize: 13, marginTop: 2 }}>Jusqu'à l'examen</div>
+            </div>
+            <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 18, fontWeight: 900, color: '#00F5A0' }}>5€</div>
           </div>
-          <a href={`https://buy.stripe.com/3cI3cufFH4DH1Hx1Fo33W00?prefilled_email=${encodeURIComponent(user?.email || '')}`} target="_blank" rel="noreferrer" style={{ display: 'block', textAlign: 'center', background: '#00F5A0', color: '#080812', borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 700, textDecoration: 'none' }}>
+          <a href={STRIPE_BREVET} target="_blank" rel="noreferrer" style={{ display: 'block', textAlign: 'center', background: '#00F5A0', color: '#080812', borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 700, textDecoration: 'none' }}>
             Choisir cette formule →
           </a>
         </div>
@@ -399,9 +289,7 @@ const QuizScreen = ({ matiere, chapitre, onBack, userEmail, typeExamen = 'brevet
     setAnswers(prev => {
       const current = prev[qId] || [];
       if (q.type === 'single') return { ...prev, [qId]: [optIndex] };
-      return current.includes(optIndex)
-        ? { ...prev, [qId]: current.filter(i => i !== optIndex) }
-        : { ...prev, [qId]: [...current, optIndex] };
+      return current.includes(optIndex) ? { ...prev, [qId]: current.filter(i => i !== optIndex) } : { ...prev, [qId]: [...current, optIndex] };
     });
   };
 
@@ -413,21 +301,12 @@ const QuizScreen = ({ matiere, chapitre, onBack, userEmail, typeExamen = 'brevet
       if (userAns === rightAns) correct++;
     });
     const pct = Math.round((correct / questions.length) * 100);
-    setScore(correct);
-    setSubmitted(true);
-
-    // Sauvegarder dans Supabase
+    setScore(correct); setSubmitted(true);
     await supabase.from('quiz_results').insert({
-      user_email: userEmail,
-      matiere: matiere.nom,
-      chapitre: chapitre.titre,
-      score: correct,
-      total_questions: questions.length,
-      pourcentage: pct,
+      user_email: userEmail, matiere: matiere.nom, chapitre: chapitre.titre,
+      score: correct, total_questions: questions.length, pourcentage: pct,
       questions: questions.map(q => ({
-        question: q.question,
-        correct: q.correct,
-        user_answer: answers[q.id] || [],
+        question: q.question, correct: q.correct, user_answer: answers[q.id] || [],
         is_correct: (answers[q.id] || []).sort().join(',') === [...q.correct].sort().join(','),
         explication: q.explication,
       })),
@@ -452,7 +331,6 @@ const QuizScreen = ({ matiere, chapitre, onBack, userEmail, typeExamen = 'brevet
     </div>
   );
 
-  // Écran résultats
   if (submitted) return (
     <div style={{ padding: '0 16px 24px' }}>
       <div style={{ background: matiere.couleur_hex + 'CC', padding: '20px 20px 24px', margin: '0 -16px 20px', textAlign: 'center' }}>
@@ -461,13 +339,10 @@ const QuizScreen = ({ matiere, chapitre, onBack, userEmail, typeExamen = 'brevet
         <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: 15, marginTop: 4 }}>{score} / {questions.length} bonnes réponses</div>
         <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, marginTop: 4 }}>{matiere.emoji} {chapitre.titre}</div>
       </div>
-
       <div style={{ marginBottom: 16, padding: '12px 16px', background: '#12121F', borderRadius: 14, fontSize: 13, color: '#94A3B8', textAlign: 'center' }}>
         {pct >= 80 ? '🌟 Excellent ! Tu maîtrises ce chapitre.' : pct >= 50 ? '👍 Pas mal ! Quelques notions à revoir.' : '📖 Continue à réviser ce chapitre !'}
       </div>
-
       <div style={{ fontSize: 12, fontWeight: 700, color: '#334155', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 14 }}>Correction détaillée</div>
-
       {questions.map((q, qi) => {
         const userAns = answers[q.id] || [];
         const isCorrect = userAns.sort().join(',') === [...q.correct].sort().join(',');
@@ -489,19 +364,15 @@ const QuizScreen = ({ matiere, chapitre, onBack, userEmail, typeExamen = 'brevet
                 </div>
               );
             })}
-            <div style={{ marginTop: 10, padding: '8px 12px', background: 'rgba(255,255,255,0.04)', borderRadius: 8, fontSize: 12, color: '#94A3B8', lineHeight: 1.5 }}>
-              💡 {q.explication}
-            </div>
+            <div style={{ marginTop: 10, padding: '8px 12px', background: 'rgba(255,255,255,0.04)', borderRadius: 8, fontSize: 12, color: '#94A3B8', lineHeight: 1.5 }}>💡 {q.explication}</div>
           </div>
         );
       })}
-
       <button style={{ ...S.btn(), marginTop: 8 }} onClick={onBack}>← Retour aux modes</button>
       <button style={{ ...S.btn('#12121F', '#F0F0FF'), marginTop: 10, border: '1px solid rgba(255,255,255,0.1)' }} onClick={() => { setSubmitted(false); setAnswers({}); loadQuiz(); }}>🔄 Nouveau quiz</button>
     </div>
   );
 
-  // Écran quiz
   return (
     <div style={{ padding: '0 16px 24px' }}>
       <div style={{ background: matiere.couleur_hex + 'CC', padding: '16px 20px 20px', margin: '0 -16px 20px' }}>
@@ -517,7 +388,6 @@ const QuizScreen = ({ matiere, chapitre, onBack, userEmail, typeExamen = 'brevet
           <div style={{ height: '100%', borderRadius: 2, background: '#fff', width: `${(Object.keys(answers).length / questions.length) * 100}%`, transition: 'width 0.3s' }} />
         </div>
       </div>
-
       {questions.map((q, qi) => (
         <div key={q.id} style={{ ...S.card(), marginBottom: 14 }}>
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
@@ -531,7 +401,7 @@ const QuizScreen = ({ matiere, chapitre, onBack, userEmail, typeExamen = 'brevet
             const selected = (answers[q.id] || []).includes(oi);
             return (
               <button key={oi} onClick={() => toggleAnswer(q.id, oi)} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', background: selected ? matiere.couleur_hex + '15' : 'rgba(255,255,255,0.03)', border: `1.5px solid ${selected ? matiere.couleur_hex : 'rgba(255,255,255,0.08)'}`, borderRadius: 10, padding: '10px 12px', marginBottom: 8, cursor: 'pointer', textAlign: 'left' }}>
-                <div style={{ width: q.type === 'multiple' ? 16 : 16, height: 16, borderRadius: q.type === 'multiple' ? 4 : '50%', border: `2px solid ${selected ? matiere.couleur_hex : '#334155'}`, background: selected ? matiere.couleur_hex : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: 16, height: 16, borderRadius: q.type === 'multiple' ? 4 : '50%', border: `2px solid ${selected ? matiere.couleur_hex : '#334155'}`, background: selected ? matiere.couleur_hex : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {selected && <span style={{ fontSize: 9, color: '#080812', fontWeight: 900 }}>✓</span>}
                 </div>
                 <span style={{ fontSize: 13, color: selected ? '#F0F0FF' : '#94A3B8', fontWeight: selected ? 600 : 400 }}>{opt}</span>
@@ -540,7 +410,6 @@ const QuizScreen = ({ matiere, chapitre, onBack, userEmail, typeExamen = 'brevet
           })}
         </div>
       ))}
-
       <button style={{ ...S.btn(), opacity: Object.keys(answers).length === questions.length ? 1 : 0.5 }} onClick={handleSubmit} disabled={Object.keys(answers).length !== questions.length}>
         {Object.keys(answers).length === questions.length ? '✅ Voir mes résultats' : `Réponds à toutes les questions (${Object.keys(answers).length}/${questions.length})`}
       </button>
@@ -601,6 +470,7 @@ const ContentScreen = ({ matiere, chapitre, mode, onBack, typeExamen = 'brevet' 
 const HomeScreen = ({ user, matieres, onSelectMatiere }) => {
   const trialEnd = user?.trial_end ? new Date(user.trial_end) : null;
   const trialDays = trialEnd ? Math.max(0, Math.ceil((trialEnd - new Date()) / 86400000)) : 0;
+  const examLabel = user?.type_examen?.startsWith('bac') ? 'le Bac' : 'le Brevet';
   return (
     <div style={{ paddingBottom: 16 }}>
       <div style={{ background: 'linear-gradient(135deg, #0D1830 0%, #080812 100%)', padding: '24px 20px 28px' }}>
@@ -608,8 +478,8 @@ const HomeScreen = ({ user, matieres, onSelectMatiere }) => {
         <Logo size={28} />
         <div style={{ marginTop: 16, display: 'flex', gap: 10 }}>
           <div style={{ ...S.card('#0A0A18'), flex: 1, textAlign: 'center', border: '1px solid #7B2FFF30' }}>
-            <div style={{ fontSize: 26, fontWeight: 800, color: '#00F5A0', fontFamily: "'Unbounded', sans-serif" }}>{daysUntilBrevet()}</div>
-            <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>jours avant<br />le brevet</div>
+            <div style={{ fontSize: 26, fontWeight: 800, color: '#00F5A0', fontFamily: "'Unbounded', sans-serif" }}>{daysUntilExam(user?.type_examen)}</div>
+            <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>jours avant<br />{examLabel}</div>
           </div>
           {user?.statut === 'trial' && (
             <div style={{ ...S.card('#0A0A18'), flex: 1, textAlign: 'center', border: '1px solid #00F5A030' }}>
@@ -689,58 +559,6 @@ const ModeScreen = ({ matiere, chapitre, onSelect, onBack }) => (
   </div>
 );
 
-// ── PROFIL ───────────────────────────────────────────────────
-const ProfilScreen = ({ user, onLogout, onShowCGU, onShowRGPD }) => {
-  const statusColors = { trial: '#378ADD', premium: '#10B981', expired: '#EF4444' };
-  const statusLabels = { trial: 'Essai gratuit', premium: 'Premium ✅', expired: 'Expiré' };
-  return (
-    <div style={{ padding: '24px 16px' }}>
-      <div style={{ marginBottom: 24 }}><Logo size={22} /><div style={{ fontSize: 12, color: '#475569', marginTop: 4 }}>Mon profil</div></div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div style={S.card()}>
-          <div style={{ fontSize: 12, color: '#475569', marginBottom: 14, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Compte</div>
-          {[['👤 Prénom', user?.prenom], ['📧 Email', user?.email], ['📅 Inscrit le', user?.date_inscription ? new Date(user.date_inscription).toLocaleDateString('fr-FR') : '—']].map(([label, value]) => (
-            <div key={label} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, marginBottom: 10, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-              <span style={{ fontSize: 13, color: '#64748B' }}>{label}</span>
-              <span style={{ fontSize: 13, color: '#F0F0FF', fontWeight: 500 }}>{value || '—'}</span>
-            </div>
-          ))}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 13, color: '#64748B' }}>📊 Statut</span>
-            <span style={{ fontSize: 12, fontWeight: 700, color: statusColors[user?.statut], background: (statusColors[user?.statut] || '#64748B') + '20', padding: '4px 12px', borderRadius: 20 }}>{statusLabels[user?.statut] || '—'}</span>
-          </div>
-        </div>
-        {user?.statut !== 'premium' && (
-          <div style={{ ...S.card(), border: '1px solid #00F5A030' }}>
-            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>🚀 Passer à Premium</div>
-            <div style={{ fontSize: 13, color: '#64748B', marginBottom: 14 }}>Accès illimité jusqu'au brevet pour 9,99€</div>
-            <a href="https://buy.stripe.com/3cI3cufFH4DH1Hx1Fo33W00" target="_blank" rel="noreferrer" style={{ display: 'block', textAlign: 'center', background: '#00F5A0', color: '#080812', borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 700, textDecoration: 'none' }}>S'abonner →</a>
-          </div>
-        )}
-        <div style={S.card()}>
-          <div style={{ fontSize: 12, color: '#475569', marginBottom: 14, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Légal</div>
-          <div onClick={() => onShowCGU()} style={{ padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: 13, color: '#64748B', cursor: 'pointer' }}>CGU →</div>
-          <div onClick={() => onShowRGPD()} style={{ padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: 13, color: '#64748B', cursor: 'pointer' }}>Politique de confidentialité →</div>
-          <div style={{ padding: '10px 0', fontSize: 13, color: '#EF4444', cursor: 'pointer' }}>Supprimer mon compte →</div>
-        </div>
-        <button style={{ ...S.btn('rgba(255,255,255,0.06)', '#F0F0FF'), marginTop: 8 }} onClick={onLogout}>Se déconnecter</button>
-      </div>
-    </div>
-  );
-};
-
-// ── NAV ──────────────────────────────────────────────────────
-const NavBar = ({ active, onChange }) => (
-  <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, background: '#0A0A18', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', padding: '8px 0 20px', zIndex: 100 }}>
-    {[{ id: 'home', emoji: '🏠', label: 'Accueil' }, { id: 'profil', emoji: '👤', label: 'Profil' }].map(tab => (
-      <button key={tab.id} onClick={() => onChange(tab.id)} style={{ flex: 1, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '4px 0' }}>
-        <span style={{ fontSize: 22 }}>{tab.emoji}</span>
-        <span style={{ fontSize: 11, fontWeight: active === tab.id ? 700 : 400, color: active === tab.id ? '#00F5A0' : '#475569' }}>{tab.label}</span>
-        {active === tab.id && <div style={{ width: 18, height: 3, borderRadius: 2, background: '#00F5A0' }} />}
-      </button>
-    ))}
-  </div>
-);
 // ── CGU ──────────────────────────────────────────────────────
 const CGUScreen = ({ onBack }) => (
   <div style={S.app}>
@@ -749,71 +567,33 @@ const CGUScreen = ({ onBack }) => (
         <button style={S.backBtn} onClick={onBack}>← Retour</button>
         <Logo size={22} />
         <div style={{ fontSize: 18, fontWeight: 700, marginTop: 8 }}>Conditions Générales d'Utilisation</div>
-        <div style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>Version 1.0 — Avril 2026</div>
+        <div style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>Version 1.0 — 2026</div>
       </div>
-      <div style={{ padding: '20px 20px', fontSize: 13, color: '#94A3B8', lineHeight: 1.8 }}>
-
+      <div style={{ padding: '20px', fontSize: 13, color: '#94A3B8', lineHeight: 1.8 }}>
         <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 16 }}>Article 1 — Éditeur</div>
         <p>PassIt est édité par Optimeo Agency. Contact : contact@passit.fr</p>
-
         <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 2 — Acceptation des CGU</div>
-        <p>L'utilisation de PassIt implique l'acceptation pleine et entière des présentes CGU. Pour les utilisateurs mineurs (moins de 15 ans), le consentement d'un parent ou tuteur légal est requis.</p>
-
+        <p>L'utilisation de PassIt implique l'acceptation pleine et entière des présentes CGU. Pour les utilisateurs mineurs de moins de 15 ans, le consentement parental est requis.</p>
         <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 3 — Description du service</div>
-        <p>PassIt propose des fiches de cours, quiz interactifs et exercices guidés générés par intelligence artificielle pour préparer le Brevet des collèges. Le contenu est fourni à titre d'aide à la révision et ne remplace pas l'enseignement scolaire.</p>
+        <p>PassIt propose des fiches de cours, quiz et exercices générés par IA pour préparer le Brevet et le Baccalauréat. Le contenu ne remplace pas l'enseignement scolaire.</p>
         <div style={{ background: '#FEF2F220', borderRadius: 10, padding: '12px 14px', marginTop: 10, border: '1px solid #EF444430' }}>
-          <span style={{ color: '#EF4444', fontWeight: 600, fontSize: 12 }}>⚠️ PassIt n'est pas un outil de triche.</span>
-          <p style={{ marginTop: 4, fontSize: 12 }}>Toute utilisation pendant un examen est strictement interdite.</p>
+          <span style={{ color: '#EF4444', fontWeight: 600, fontSize: 12 }}>PassIt n'est pas un outil de triche. Toute utilisation pendant un examen est interdite.</span>
         </div>
-
         <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 4 — Essai gratuit</div>
-        <p>Chaque nouvel utilisateur bénéficie d'un accès gratuit complet de 3 jours calendaires. Cet essai est accordé une seule fois par adresse email.</p>
-
-        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 5 — Abonnement et tarifs</div>
-        <div style={{ background: '#12121F', borderRadius: 10, padding: '12px 14px', marginTop: 8 }}>
-          {[
-            ['Brevet', '9,99€', 'Paiement unique · Jusqu\'au 30 juin'],
-            ['Vacances', '4,99€', 'Paiement unique · Juillet-Août'],
-            ['Annuel', '29,99€/an', 'Renouvellement automatique'],
-          ].map(([nom, prix, desc]) => (
-            <div key={nom} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#F0F0FF' }}>{nom}</div>
-                <div style={{ fontSize: 11, color: '#64748B' }}>{desc}</div>
-              </div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#00F5A0' }}>{prix}</div>
-            </div>
-          ))}
-        </div>
-        <p style={{ marginTop: 10 }}>Le paiement est sécurisé par Stripe. Aucune donnée bancaire n'est stockée par PassIt.</p>
-
-        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 6 — Droit de rétractation</div>
-        <p>Conformément à l'article L221-28 du Code de la consommation, le droit de rétractation ne s'applique pas aux contenus numériques dont l'exécution a commencé avec l'accord du consommateur. Un remboursement peut être demandé dans les 24h si aucun contenu n'a été consulté.</p>
-
-        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 7 — Comportements interdits</div>
-        <p>Il est interdit de partager ses identifiants, créer plusieurs comptes pour bénéficier de plusieurs essais gratuits, extraire ou redistribuer le contenu à des fins commerciales, ou utiliser l'app pendant un examen.</p>
-
-        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 8 — Propriété intellectuelle</div>
-        <p>L'ensemble des éléments de PassIt (marque, logo, contenu, code) est la propriété exclusive d'Optimeo Agency et est protégé par le droit français.</p>
-
-        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 9 — Responsabilité</div>
-        <p>Optimeo Agency ne saurait être tenue responsable des résultats obtenus au Brevet, des erreurs dans le contenu généré par IA, ou des interruptions de service.</p>
-
-        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 10 — Résiliation</div>
-        <p>L'utilisateur peut supprimer son compte à tout moment depuis la page Profil. La suppression entraîne la perte immédiate de l'accès sans remboursement.</p>
-
-        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 11 — Droit applicable</div>
-        <p>Les présentes CGU sont soumises au droit français. Contact : contact@passit.fr</p>
-
-        <div style={{ marginTop: 24, padding: '14px', background: '#12121F', borderRadius: 12, fontSize: 12, color: '#475569', textAlign: 'center' }}>
-          Optimeo Agency · CGU Version 1.0 · Avril 2026
-        </div>
+        <p>3 jours d'accès complet offerts à l'inscription. Un seul essai par adresse email.</p>
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 5 — Tarifs</div>
+        <p>Brevet ou Bac : 5€ jusqu'à l'examen. Paiement unique sécurisé par Stripe.</p>
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 6 — Résiliation</div>
+        <p>Suppression du compte possible à tout moment depuis le Profil.</p>
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 7 — Droit applicable</div>
+        <p>Droit français. Contact : contact@passit.fr</p>
+        <div style={{ marginTop: 24, padding: '14px', background: '#12121F', borderRadius: 12, fontSize: 12, color: '#475569', textAlign: 'center' }}>Optimeo Agency · CGU v1.0 · 2026</div>
       </div>
     </div>
   </div>
 );
 
-// ── POLITIQUE DE CONFIDENTIALITÉ ─────────────────────────────
+// ── RGPD ─────────────────────────────────────────────────────
 const RGPDScreen = ({ onBack }) => (
   <div style={S.app}>
     <div style={{ ...S.screen, padding: '0 0 32px' }}>
@@ -821,90 +601,29 @@ const RGPDScreen = ({ onBack }) => (
         <button style={S.backBtn} onClick={onBack}>← Retour</button>
         <Logo size={22} />
         <div style={{ fontSize: 18, fontWeight: 700, marginTop: 8 }}>Politique de confidentialité</div>
-        <div style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>Version 1.0 — Avril 2026 · Conforme RGPD</div>
+        <div style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>Version 1.0 — 2026 · Conforme RGPD</div>
       </div>
       <div style={{ padding: '20px', fontSize: 13, color: '#94A3B8', lineHeight: 1.8 }}>
-
         <div style={{ background: '#00F5A010', border: '1px solid #00F5A030', borderRadius: 12, padding: '14px', marginBottom: 20 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: '#00F5A0', marginBottom: 6 }}>Résumé simple</div>
-          <p style={{ fontSize: 12 }}>PassIt collecte uniquement email et prénom. Aucune donnée bancaire stockée. Aucune pub. Suppression possible à tout moment.</p>
+          <p style={{ fontSize: 12 }}>PassIt collecte uniquement email et prénom. Aucune donnée bancaire. Aucune pub. Suppression possible à tout moment.</p>
         </div>
-
-        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8 }}>Article 1 — Responsable du traitement</div>
-        <p>Optimeo Agency · contact@passit.fr · privacy@passit.fr</p>
-
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8 }}>Article 1 — Responsable</div>
+        <p>Optimeo Agency · privacy@passit.fr</p>
         <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 2 — Données collectées</div>
-        <div style={{ background: '#12121F', borderRadius: 10, padding: '12px 14px' }}>
-          {[
-            ['Email', 'Authentification', '3 ans après dernière connexion'],
-            ['Prénom', 'Personnalisation', '3 ans après dernière connexion'],
-            ['Progression quiz', 'Rapport parent', 'Durée du compte'],
-            ['Consentement RGPD', 'Obligation légale', '5 ans'],
-            ['ID Stripe', 'Audit comptable', '10 ans'],
-          ].map(([donnee, finalite, duree]) => (
-            <div key={donnee} style={{ padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontWeight: 600, color: '#F0F0FF', fontSize: 12 }}>{donnee}</span>
-                <span style={{ fontSize: 11, color: '#64748B' }}>{duree}</span>
-              </div>
-              <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>{finalite}</div>
-            </div>
-          ))}
-        </div>
-
+        <p>Email, prénom, progression quiz, consentement RGPD, ID Stripe (audit comptable uniquement).</p>
         <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 3 — Protection des mineurs</div>
-        <p>PassIt est destinée aux élèves de 3e (~15 ans). Pour les mineurs de moins de 15 ans, le consentement parental est requis. Aucun profilage commercial n'est effectué sur les données des mineurs.</p>
-
-        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 4 — Sous-traitants</div>
-        <div style={{ background: '#12121F', borderRadius: 10, padding: '12px 14px' }}>
-          {[
-            ['Supabase (USA)', 'Base de données', 'SCC'],
-            ['Vercel (USA)', 'Hébergement app', 'SCC'],
-            ['Brevo (France)', 'Emails', 'Hébergement EU ✅'],
-            ['Stripe (USA)', 'Paiement', 'SCC + PCI-DSS'],
-            ['Anthropic (USA)', 'IA pédagogique', 'Données anonymisées'],
-          ].map(([nom, role, garantie]) => (
-            <div key={nom} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#F0F0FF' }}>{nom}</div>
-                <div style={{ fontSize: 11, color: '#64748B' }}>{role}</div>
-              </div>
-              <span style={{ fontSize: 11, color: '#00F5A0', background: '#00F5A010', padding: '2px 8px', borderRadius: 20 }}>{garantie}</span>
-            </div>
-          ))}
-        </div>
-
-        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 5 — Tes droits (RGPD)</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {[
-            ['Accès', 'Obtenir une copie de tes données'],
-            ['Rectification', 'Corriger des données inexactes'],
-            ['Effacement', 'Supprimer ton compte et données'],
-            ['Portabilité', 'Recevoir tes données en CSV'],
-            ['Opposition', 'Refuser un traitement'],
-          ].map(([droit, desc]) => (
-            <div key={droit} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-              <span style={{ color: '#00F5A0', fontWeight: 700, fontSize: 12, minWidth: 90 }}>{droit}</span>
-              <span style={{ fontSize: 12 }}>{desc}</span>
-            </div>
-          ))}
-        </div>
-        <p style={{ marginTop: 10 }}>Pour exercer tes droits : <span style={{ color: '#00F5A0' }}>privacy@passit.fr</span> — Réponse sous 30 jours.</p>
-
-        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 6 — Cookies</div>
-        <p>PassIt utilise uniquement un cookie de session fonctionnel (maintien de la connexion). Aucun cookie publicitaire ou de tracking.</p>
-
-        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 7 — Contact & réclamations</div>
-        <p>DPO : <span style={{ color: '#00F5A0' }}>privacy@passit.fr</span></p>
-        <p style={{ marginTop: 6 }}>Autorité de contrôle : <span style={{ color: '#00F5A0' }}>CNIL — www.cnil.fr</span></p>
-
-        <div style={{ marginTop: 24, padding: '14px', background: '#12121F', borderRadius: 12, fontSize: 12, color: '#475569', textAlign: 'center' }}>
-          Conforme au RGPD (UE) 2016/679 · Optimeo Agency · Avril 2026
-        </div>
+        <p>Consentement parental requis pour les moins de 15 ans. Aucun profilage commercial.</p>
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 4 — Tes droits</div>
+        <p>Accès, rectification, effacement, portabilité. Contact : privacy@passit.fr — Réponse sous 30 jours.</p>
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F0FF', marginBottom: 8, marginTop: 20 }}>Article 5 — Cookies</div>
+        <p>Cookie de session uniquement. Aucun cookie publicitaire.</p>
+        <div style={{ marginTop: 24, padding: '14px', background: '#12121F', borderRadius: 12, fontSize: 12, color: '#475569', textAlign: 'center' }}>Conforme RGPD (UE) 2016/679 · Optimeo Agency · 2026</div>
       </div>
     </div>
   </div>
 );
+
 // ── RESET PASSWORD ───────────────────────────────────────────
 const ResetPasswordScreen = ({ onDone }) => {
   const [password, setPassword] = useState('');
@@ -931,7 +650,7 @@ const ResetPasswordScreen = ({ onDone }) => {
         <div style={{ fontSize: 56, marginBottom: 24 }}>✅</div>
         <Logo size={28} />
         <div style={{ marginTop: 24, fontSize: 20, fontWeight: 700 }}>Mot de passe modifié !</div>
-        <div style={{ marginTop: 12, color: '#64748B', fontSize: 15 }}>Tu peux maintenant te connecter avec ton nouveau mot de passe.</div>
+        <div style={{ marginTop: 12, color: '#64748B', fontSize: 15 }}>Tu peux maintenant te connecter.</div>
         <button style={{ ...S.btn(), marginTop: 32 }} onClick={onDone}>Se connecter →</button>
       </div>
     </div>
@@ -945,23 +664,70 @@ const ResetPasswordScreen = ({ onDone }) => {
           <div style={{ marginTop: 12, fontSize: 18, fontWeight: 700 }}>Nouveau mot de passe</div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div>
-            <label style={S.label}>Nouveau mot de passe</label>
-            <input style={S.input} placeholder="8 caractères minimum" type="password" value={password} onChange={e => setPassword(e.target.value)} />
-          </div>
-          <div>
-            <label style={S.label}>Confirmer le mot de passe</label>
-            <input style={S.input} placeholder="Répète ton mot de passe" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} />
-          </div>
+          <div><label style={S.label}>Nouveau mot de passe</label><input style={S.input} placeholder="8 caractères minimum" type="password" value={password} onChange={e => setPassword(e.target.value)} /></div>
+          <div><label style={S.label}>Confirmer</label><input style={S.input} placeholder="Répète ton mot de passe" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} /></div>
           {error && <div style={{ background: '#FEF2F2', borderRadius: 10, padding: '10px 14px', color: '#991B1B', fontSize: 13 }}>⚠️ {error}</div>}
-          <button style={S.btn()} onClick={handleReset} disabled={loading}>
-            {loading ? '...' : '🔒 Modifier mon mot de passe'}
-          </button>
+          <button style={S.btn()} onClick={handleReset} disabled={loading}>{loading ? '...' : '🔒 Modifier mon mot de passe'}</button>
         </div>
       </div>
     </div>
   );
 };
+
+// ── PROFIL ───────────────────────────────────────────────────
+const ProfilScreen = ({ user, onLogout, onShowCGU, onShowRGPD }) => {
+  const statusColors = { trial: '#378ADD', premium: '#10B981', expired: '#EF4444' };
+  const statusLabels = { trial: 'Essai gratuit', premium: 'Premium ✅', expired: 'Expiré' };
+  const examLabels = { brevet: 'Brevet des collèges', bac_general: 'Bac Général', bac_techno: 'Bac Technologique', bac_pro: 'Bac Professionnel' };
+  return (
+    <div style={{ padding: '24px 16px' }}>
+      <div style={{ marginBottom: 24 }}><Logo size={22} /><div style={{ fontSize: 12, color: '#475569', marginTop: 4 }}>Mon profil</div></div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={S.card()}>
+          <div style={{ fontSize: 12, color: '#475569', marginBottom: 14, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Compte</div>
+          {[['👤 Prénom', user?.prenom], ['📧 Email', user?.email], ['🎓 Examen', examLabels[user?.type_examen] || 'Brevet'], ['📅 Inscrit le', user?.date_inscription ? new Date(user.date_inscription).toLocaleDateString('fr-FR') : '—']].map(([label, value]) => (
+            <div key={label} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, marginBottom: 10, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+              <span style={{ fontSize: 13, color: '#64748B' }}>{label}</span>
+              <span style={{ fontSize: 13, color: '#F0F0FF', fontWeight: 500 }}>{value || '—'}</span>
+            </div>
+          ))}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 13, color: '#64748B' }}>📊 Statut</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: statusColors[user?.statut], background: (statusColors[user?.statut] || '#64748B') + '20', padding: '4px 12px', borderRadius: 20 }}>{statusLabels[user?.statut] || '—'}</span>
+          </div>
+        </div>
+        {user?.statut !== 'premium' && (
+          <div style={{ ...S.card(), border: '1px solid #00F5A030' }}>
+            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>🚀 Passer à Premium</div>
+            <div style={{ fontSize: 13, color: '#64748B', marginBottom: 14 }}>Accès illimité jusqu'à l'examen pour 5€</div>
+            <a href={STRIPE_BREVET} target="_blank" rel="noreferrer" style={{ display: 'block', textAlign: 'center', background: '#00F5A0', color: '#080812', borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 700, textDecoration: 'none' }}>S'abonner →</a>
+          </div>
+        )}
+        <div style={S.card()}>
+          <div style={{ fontSize: 12, color: '#475569', marginBottom: 14, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Légal</div>
+          <div onClick={() => onShowCGU()} style={{ padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: 13, color: '#64748B', cursor: 'pointer' }}>CGU →</div>
+          <div onClick={() => onShowRGPD()} style={{ padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: 13, color: '#64748B', cursor: 'pointer' }}>Politique de confidentialité →</div>
+          <div style={{ padding: '10px 0', fontSize: 13, color: '#EF4444', cursor: 'pointer' }}>Supprimer mon compte →</div>
+        </div>
+        <button style={{ ...S.btn('rgba(255,255,255,0.06)', '#F0F0FF'), marginTop: 8 }} onClick={onLogout}>Se déconnecter</button>
+      </div>
+    </div>
+  );
+};
+
+// ── NAV ──────────────────────────────────────────────────────
+const NavBar = ({ active, onChange }) => (
+  <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, background: '#0A0A18', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', padding: '8px 0 20px', zIndex: 100 }}>
+    {[{ id: 'home', emoji: '🏠', label: 'Accueil' }, { id: 'profil', emoji: '👤', label: 'Profil' }].map(tab => (
+      <button key={tab.id} onClick={() => onChange(tab.id)} style={{ flex: 1, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '4px 0' }}>
+        <span style={{ fontSize: 22 }}>{tab.emoji}</span>
+        <span style={{ fontSize: 11, fontWeight: active === tab.id ? 700 : 400, color: active === tab.id ? '#00F5A0' : '#475569' }}>{tab.label}</span>
+        {active === tab.id && <div style={{ width: 18, height: 3, borderRadius: 2, background: '#00F5A0' }} />}
+      </button>
+    ))}
+  </div>
+);
+
 // ── APP ──────────────────────────────────────────────────────
 export default function App() {
   const [authUser, setAuthUser] = useState(null);
@@ -992,9 +758,10 @@ export default function App() {
 
   const loadUserData = async (email) => {
     setLoading(true);
-    const [{ data: user }, { data: mats }, { data: chaps }] = await Promise.all([
-      supabase.from('users').select('*').eq('email', email).single(),
-      supabase.from('matieres').select('*').eq('actif', true).eq('type_examen', user?.type_examen || 'brevet').order('ordre'),
+    const { data: user } = await supabase.from('users').select('*').eq('email', email).single();
+    const typeExamen = user?.type_examen || 'brevet';
+    const [{ data: mats }, { data: chaps }] = await Promise.all([
+      supabase.from('matieres').select('*').eq('actif', true).eq('type_examen', typeExamen).order('ordre'),
       supabase.from('chapitres').select('*').eq('actif', true).order('ordre'),
     ]);
     setDbUser(user); setMatieres(mats || []); setChapitres(chaps || []);
@@ -1007,16 +774,10 @@ export default function App() {
 
   if (loading) return <div style={{ ...S.app, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ textAlign: 'center' }}><Logo size={32} /><div style={{ marginTop: 20, color: '#334155' }}>Chargement…</div></div></div>;
   if (!authUser) return <AuthScreen />;
-  // Détecter la page reset-password
-  const isResetPassword = window.location.pathname === '/reset-password' || 
-    window.location.hash.includes('type=recovery');
 
-  if (isResetPassword && authUser) return (
-    <ResetPasswordScreen onDone={() => { 
-      window.history.pushState({}, '', '/');
-      window.location.reload();
-    }} />
-  );
+  const isResetPassword = window.location.pathname === '/reset-password' || window.location.hash.includes('type=recovery');
+  if (isResetPassword && authUser) return <ResetPasswordScreen onDone={() => { window.history.pushState({}, '', '/'); window.location.reload(); }} />;
+
   if (showCGU) return <CGUScreen onBack={() => setShowCGU(false)} />;
   if (showRGPD) return <RGPDScreen onBack={() => setShowRGPD(false)} />;
   if (!hasAccess) return <PaywallScreen user={dbUser} onLogout={handleLogout} />;
@@ -1032,7 +793,7 @@ export default function App() {
         {selectedMatiere && selectedChapitre && selectedMode && selectedMode !== 'Quiz' && <ContentScreen matiere={selectedMatiere} chapitre={selectedChapitre} mode={selectedMode} onBack={() => setSelectedMode(null)} typeExamen={dbUser?.type_examen || 'brevet'} />}
         {tab === 'profil' && !selectedMatiere && <ProfilScreen user={dbUser} onLogout={handleLogout} onShowCGU={() => setShowCGU(true)} onShowRGPD={() => setShowRGPD(true)} />}
       </div>
-      {!selectedMatiere && <NavBar active={tab} onChange={t => { setTab(t); }} />}
+      {!selectedMatiere && <NavBar active={tab} onChange={t => setTab(t)} />}
     </div>
   );
 }
