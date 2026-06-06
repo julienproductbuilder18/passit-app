@@ -339,7 +339,7 @@ const PaywallScreen = ({ user, onLogout }) => (
 );
 
 // ── QUIZ ─────────────────────────────────────────────────────
-const QuizScreen = ({ matiere, chapitre, onBack, userEmail }) => {
+const QuizScreen = ({ matiere, chapitre, onBack, userEmail, typeExamen = 'brevet' }) => {
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState({});
   const [loading, setLoading] = useState(true);
@@ -355,7 +355,7 @@ const QuizScreen = ({ matiere, chapitre, onBack, userEmail }) => {
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: buildQuizPrompt(matiere.nom, chapitre.titre) }),
+        body: JSON.stringify({ prompt: buildQuizPrompt(matiere.nom, chapitre.titre, typeExamen) }),
       });
       const data = await response.json();
       const cleaned = data.text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
@@ -521,7 +521,7 @@ const QuizScreen = ({ matiere, chapitre, onBack, userEmail }) => {
 };
 
 // ── CONTENU IA ───────────────────────────────────────────────
-const ContentScreen = ({ matiere, chapitre, mode, onBack }) => {
+const ContentScreen = ({ matiere, chapitre, mode, onBack, typeExamen = 'brevet' }) => {
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -538,7 +538,7 @@ const ContentScreen = ({ matiere, chapitre, mode, onBack }) => {
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: buildPrompt(mode, matiere.nom, chapitre.titre) }),
+        body: JSON.stringify({ prompt: buildPrompt(mode, matiere.nom, chapitre.titre, typeExamen) }),
       });
       const data = await response.json();
       const text = data.text || '';
@@ -1000,8 +1000,8 @@ export default function App() {
         {!selectedMatiere && tab === 'home' && <HomeScreen user={dbUser} matieres={matieres} onSelectMatiere={m => { setSelectedMatiere(m); setSelectedChapitre(null); setSelectedMode(null); }} />}
         {selectedMatiere && !selectedChapitre && <ChapitresScreen matiere={selectedMatiere} chapitres={filteredChapitres} onSelect={ch => setSelectedChapitre(ch)} onBack={() => setSelectedMatiere(null)} />}
         {selectedMatiere && selectedChapitre && !selectedMode && <ModeScreen matiere={selectedMatiere} chapitre={selectedChapitre} onSelect={m => setSelectedMode(m)} onBack={() => setSelectedChapitre(null)} />}
-        {selectedMatiere && selectedChapitre && selectedMode === 'Quiz' && <QuizScreen matiere={selectedMatiere} chapitre={selectedChapitre} onBack={() => setSelectedMode(null)} userEmail={dbUser?.email} />}
-        {selectedMatiere && selectedChapitre && selectedMode && selectedMode !== 'Quiz' && <ContentScreen matiere={selectedMatiere} chapitre={selectedChapitre} mode={selectedMode} onBack={() => setSelectedMode(null)} />}
+        {selectedMatiere && selectedChapitre && selectedMode === 'Quiz' && <QuizScreen matiere={selectedMatiere} chapitre={selectedChapitre} onBack={() => setSelectedMode(null)} userEmail={dbUser?.email} typeExamen={dbUser?.type_examen || 'brevet'} />}
+        {selectedMatiere && selectedChapitre && selectedMode && selectedMode !== 'Quiz' && <ContentScreen matiere={selectedMatiere} chapitre={selectedChapitre} mode={selectedMode} onBack={() => setSelectedMode(null)} typeExamen={dbUser?.type_examen || 'brevet'} />}
         {tab === 'profil' && !selectedMatiere && <ProfilScreen user={dbUser} onLogout={handleLogout} onShowCGU={() => setShowCGU(true)} onShowRGPD={() => setShowRGPD(true)} />}
       </div>
       {!selectedMatiere && <NavBar active={tab} onChange={t => { setTab(t); }} />}
