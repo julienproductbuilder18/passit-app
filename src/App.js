@@ -115,6 +115,7 @@ const AuthScreen = () => {
           trial_end: trialEnd.toISOString(),
           statut: 'trial',
           consentement_rgpd: consent,
+          type_examen: typeExamen === 'bac' ? filiereBac : 'brevet', // 👈 AJOUTER
         }, { onConflict: 'email', ignoreDuplicates: true });
         if (upsertErr) throw upsertErr;
 {!isLogin && (
