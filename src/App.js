@@ -907,16 +907,28 @@ export default function App() {
   }, []);
 
   const loadUserData = async (email) => {
-    setLoading(true);
-    const { data: user } = await supabase.from('users').select('*').eq('email', email).maybeSingle();
-    const typeExamen = user?.type_examen || 'brevet';
-    const [{ data: mats }, { data: chaps }] = await Promise.all([
-      supabase.from('matieres').select('*').eq('actif', true).eq('type_examen', typeExamen).order('ordre'),
-      supabase.from('chapitres').select('*').eq('actif', true).order('ordre'),
-    ]);
-    setDbUser(user); setMatieres(mats || []); setChapitres(chaps || []);
-    setLoading(false);
+  setLoading(true);
+  const { data: user } = await supabase.from('users').select('*').eq('email', email).maybeSingle();
+  
+  // Si l'utilisateur n'existe pas encore dans la table (nouvelle inscription)
+  // on crée un utilisateur temporaire avec statut trial
+  const effectiveUser = user || {
+    email,
+    statut: 'trial',
+    type_examen: 'brevet',
+    prenom: '',
   };
+  
+  const typeExamen = effectiveUser?.type_examen || 'brevet';
+  const [{ data: mats }, { data: chaps }] = await Promise.all([
+    supabase.from('matieres').select('*').eq('actif', true).eq('type_examen', typeExamen).order('ordre'),
+    supabase.from('chapitres').select('*').eq('actif', true).order('ordre'),
+  ]);
+  setDbUser(effectiveUser);
+  setMatieres(mats || []);
+  setChapitres(chaps || []);
+  setLoading(false);
+};
 
   const handleLogout = async () => { await supabase.auth.signOut(); setAuthUser(null); setDbUser(null); };
   const hasAccess = dbUser?.statut === 'trial' || dbUser?.statut === 'premium';
@@ -932,8 +944,7 @@ export default function App() {
   if (showRGPD) return <RGPDScreen onBack={() => setShowRGPD(false)} />;
   const isNewUser = dbUser?.statut === 'trial' && dbUser?.date_inscription && 
   (new Date() - new Date(dbUser.date_inscription)) < 60000;
-  if (!hasAccess && dbUser) return <PaywallScreen user={dbUser} onLogout={handleLogout} />;
-  if (!hasAccess && !dbUser) return null;
+  if (!hasAccess && dbUser?.statut === 'expired') return <PaywallScreen user={dbUser} onLogout={handleLogout} />;
 
   return (
     <div style={S.app}>
