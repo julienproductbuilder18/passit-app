@@ -908,7 +908,7 @@ export default function App() {
 
   const loadUserData = async (email) => {
     setLoading(true);
-    const { data: user } = await supabase.from('users').select('*').eq('email', email).single();
+    const { data: user } = await supabase.from('users').select('*').eq('email', email).maybeSingle();
     const typeExamen = user?.type_examen || 'brevet';
     const [{ data: mats }, { data: chaps }] = await Promise.all([
       supabase.from('matieres').select('*').eq('actif', true).eq('type_examen', typeExamen).order('ordre'),
@@ -932,7 +932,8 @@ export default function App() {
   if (showRGPD) return <RGPDScreen onBack={() => setShowRGPD(false)} />;
   const isNewUser = dbUser?.statut === 'trial' && dbUser?.date_inscription && 
   (new Date() - new Date(dbUser.date_inscription)) < 60000;
-if (!hasAccess && !isNewUser) return <PaywallScreen user={dbUser} onLogout={handleLogout} />;
+  if (!hasAccess && dbUser) return <PaywallScreen user={dbUser} onLogout={handleLogout} />;
+  if (!hasAccess && !dbUser) return null;
 
   return (
     <div style={S.app}>
